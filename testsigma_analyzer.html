@@ -281,6 +281,31 @@ tr.fallback-row td{background:#FFFBEB}
 .btn-agent-dl:hover{background:#4338CA}
 .btn-agent-dl:disabled{background:#C7D2FE;cursor:not-allowed}
 /* ── Agent Logs pane ── */
+/* Analyse button action bar */
+.agent-action-bar{padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;background:var(--card)}
+.btn-analyse-log{width:100%;height:34px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-analyse-log:hover{background:#4338CA}
+.btn-analyse-log:disabled{background:#C7D2FE;cursor:not-allowed}
+/* KB sync status badge — lives in side pane below action bar */
+.agent-kb-status-bar{padding:8px 14px;border-top:1px solid var(--border);flex-shrink:0;display:none;flex-direction:column;gap:4px}
+.agent-kb-status-bar.visible{display:flex}
+.agent-kb-badge{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;width:fit-content}
+.agent-kb-badge.searching{background:var(--accent-light);color:var(--accent)}
+.agent-kb-badge.found{background:var(--green-light);color:var(--green)}
+.agent-kb-badge.logged{background:#FFFBEB;color:var(--amber)}
+.agent-kb-badge.error{background:#FEF2F2;color:var(--red)}
+.agent-kb-badge .kb-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.agent-kb-badge .kb-dot.pulse{animation:kbpulse 1s ease-in-out infinite}
+@keyframes kbpulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* Green clean-state banner */
+.agent-clean-banner{background:#059669;color:#fff;border-radius:8px;padding:12px 16px;display:flex;align-items:flex-start;gap:10px;flex-shrink:0}
+.agent-clean-banner .cb-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.agent-clean-banner .cb-body{flex:1}
+.agent-clean-banner .cb-title{font-size:12px;font-weight:800;letter-spacing:.02em}
+/* Compact match cards — token-optimised */
+.amc-fix-compact{font-size:10.5px;color:var(--text);line-height:1.55}
+.amc-fix-compact strong{color:var(--accent)}
+.amc-fix-compact code{font-family:ui-monospace,monospace;font-size:9.5px;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 4px}
 .pane-agent{padding:0;overflow:hidden;display:none;flex-direction:column}
 .pane-agent.active{display:flex}
 /* Agent results area lives in the content section when Agent pane is active */
@@ -632,11 +657,12 @@ tr.fallback-row td{background:#FFFBEB}
 
     <!-- ── Agent Logs Pane ── -->
     <aside class="side-pane pane-agent" id="paneAgent">
+      <!-- Header -->
       <div style="padding:14px 14px 8px;border-bottom:1px solid var(--border);flex-shrink:0">
         <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:2px">Agent Log Analyser</div>
-        <div style="font-size:10px;color:var(--muted);line-height:1.5">Drop or paste a Testsigma agent log — signatures detected automatically.</div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.5">Drop or paste a Testsigma agent log, then click Analyse.</div>
       </div>
-      <!-- Intake: drop zone -->
+      <!-- Intake: drop zone + paste -->
       <div style="padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0">
         <div class="agent-drop-zone" id="agentDropZone"
              onclick="document.getElementById('agentFileInput').click()"
@@ -652,12 +678,25 @@ tr.fallback-row td{background:#FFFBEB}
         <div style="margin-top:8px">
           <div class="agent-paste-label">Paste terminal snippet</div>
           <textarea class="agent-paste-area" id="agentPasteArea"
-                    placeholder="Paste raw log output here — analysis runs automatically..."
-                    oninput="agentPasteDebounce()" style="margin-top:4px;min-height:80px;width:100%"></textarea>
+                    placeholder="Paste raw log output here..."
+                    style="margin-top:4px;min-height:80px;width:100%"></textarea>
         </div>
       </div>
-      <!-- Status + download -->
-      <div id="agentSideSummary" style="display:none;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;display:none;align-items:center;justify-content:space-between;gap:6px">
+      <!-- Action bar — Analyse button (Option B: separate strip) -->
+      <div class="agent-action-bar">
+        <button class="btn-analyse-log" id="btnAnalyseLog" onclick="agentRunAnalysis()">
+          <span id="btnAnalyseLogIcon">🔍</span> Analyse Log
+        </button>
+      </div>
+      <!-- KB sync status badge (Option A: side pane) -->
+      <div class="agent-kb-status-bar" id="agentKbStatusBar">
+        <div id="agentKbBadge" class="agent-kb-badge searching">
+          <span class="kb-dot pulse"></span>
+          <span id="agentKbBadgeText">Idle</span>
+        </div>
+      </div>
+      <!-- Summary + download (shown after analysis) -->
+      <div id="agentSideSummary" style="display:none;padding:8px 14px;border-top:1px solid var(--border);flex-shrink:0;align-items:center;justify-content:space-between;gap:6px">
         <span style="font-size:10px;font-weight:600;color:var(--muted)" id="agentSideLabel"></span>
         <button class="btn-agent-dl" onclick="agentDownloadReport()">Download (.docx)</button>
       </div>
@@ -1725,9 +1764,10 @@ const AGENT_SIGNATURES = [
 ];
 
 // -- State -------------------------------------------------------------------
-let agentLastResults  = [];   // [{sig, matchedLine, kbMatch}]
-let agentLastRawText  = '';
-let agentPasteTimer   = null;
+let agentLastResults    = [];
+let agentLastRawText    = '';
+let agentLastSourceName = 'pasted-snippet';
+let agentPasteTimer     = null;
 
 // -- Agent Log Analyzer is now a standalone top-level tab (tabAgent)
 
@@ -1757,34 +1797,56 @@ function agentReadFile(f) {
   label.textContent = 'Reading ' + f.name + '...';
   const reader = new FileReader();
   reader.onload = ev => {
-    const text = ev.target.result;
+    agentLastRawText = ev.target.result;
+    agentLastSourceName = f.name;
     zone.classList.add('loaded');
     label.textContent = f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
-    agentAnalyze(text, f.name);
+    /* File loaded — waiting for user to click Analyse Log */
+    agentSetKbBadge('idle', 'Ready — click Analyse Log');
   };
   reader.onerror = () => agentShowError('Could not read file: ' + f.name);
   reader.readAsText(f);
 }
 
-// -- Paste debounce ----------------------------------------------------------
+// -- Paste input — no auto-run, stores source name only ---------------------
 function agentPasteDebounce() {
-  clearTimeout(agentPasteTimer);
-  agentPasteTimer = setTimeout(() => {
-    const text = $('agentPasteArea').value.trim();
-    if (text.length > 20) agentAnalyze(text, 'pasted-snippet');
-  }, 600);
+  /* Auto-run removed — user must click Analyse Log button */
+  agentLastRawText = $('agentPasteArea').value.trim();
 }
 
-// -- Core analysis engine ----------------------------------------------------
+// -- Core analysis engine (manual trigger only) -----------------------------
+
+/* agentRunAnalysis: called exclusively by the Analyse Log button */
+async function agentRunAnalysis() {
+  const pasteText = $('agentPasteArea').value.trim();
+  const rawText   = agentLastRawText || pasteText;
+  const source    = agentLastSourceName || (pasteText ? 'pasted-snippet' : null);
+
+  if (!rawText || rawText.length < 10) {
+    agentShowError('No log content. Drop a file or paste text first.');
+    return;
+  }
+
+  const btn = $('btnAnalyseLog');
+  btn.disabled    = true;
+  btn.innerHTML   = '<span style="display:inline-block;animation:spin .6s linear infinite">⟳</span>&nbsp;Analysing...';
+
+  agentSetKbBadge('searching', 'Searching KB...');
+  await agentAnalyze(rawText, source);
+
+  btn.disabled  = false;
+  btn.innerHTML = '<span>🔍</span> Analyse Log';
+}
+
 async function agentAnalyze(rawText, sourceName) {
   agentLastRawText = rawText;
   agentLastResults = [];
 
-  const resultsEl  = $('agentResults');
-  const toolbarEl  = $('agentResultsToolbar');
-  const labelEl    = $('agentResultsLabel');
+  const resultsEl = $('agentResults');
+  const toolbarEl = $('agentResultsToolbar');
+  const labelEl   = $('agentResultsLabel');
 
-  resultsEl.innerHTML = '<div class="agent-empty"><span class="agent-empty-icon" style="animation:spin .6s linear infinite;display:inline-block">⟳</span><span>Analyzing...</span></div>';
+  resultsEl.innerHTML = '<div class="agent-empty"><span class="agent-empty-icon" style="animation:spin .6s linear infinite;display:inline-block">⟳</span><span>Analysing...</span></div>';
   toolbarEl.style.display = 'none';
 
   const lower = rawText.toLowerCase();
@@ -1794,16 +1856,30 @@ async function agentAnalyze(rawText, sourceName) {
     sig.keywords.some(kw => lower.includes(kw.toLowerCase()))
   );
 
-  // 2. Extract exception strings from the raw text
+  // 2. Extract exception strings
   const exceptionLines = extractExceptions(rawText);
 
-  // 3. For each match, look up KB + auto-log novel patterns
+  // 3. KB lookup + auto-log per match — with live badge updates
   const enriched = await Promise.all(matched.map(async sig => {
     const matchedLine = findMatchedLine(rawText, sig.keywords);
-    const kbMatch     = await agentKBLookup(sig.id, exceptionLines);
-    if (!kbMatch) {
-      // Auto-log novel occurrence to KB repo
-      agentKBAutoLog(sig, matchedLine, sourceName, exceptionLines).catch(() => {});
+    agentSetKbBadge('searching', 'KB: checking ' + sig.id + '...');
+    console.log('[Agent KB] Searching for:', sig.id);
+    const kbMatch = await agentKBLookup(sig.id, exceptionLines);
+    if (kbMatch) {
+      console.log('[Agent KB] Found Issue #' + kbMatch.number + ' for', sig.id);
+      agentSetKbBadge('found', 'KB: matched #' + kbMatch.number);
+    } else {
+      console.log('[Agent KB] No match for', sig.id, '— auto-logging...');
+      agentSetKbBadge('logged', 'KB: logging ' + sig.id + '...');
+      agentKBAutoLog(sig, matchedLine, sourceName, exceptionLines)
+        .then(n => {
+          console.log('[Agent KB] Auto-logged as Issue #' + n + ' for', sig.id);
+          agentSetKbBadge('logged', 'KB: logged #' + n);
+        })
+        .catch(err => {
+          console.warn('[Agent KB] Auto-log failed for', sig.id, err.message);
+          agentSetKbBadge('error', 'KB: log failed');
+        });
     }
     return { sig, matchedLine, kbMatch };
   }));
@@ -1812,9 +1888,15 @@ async function agentAnalyze(rawText, sourceName) {
 
   // 4. Render
   if (!enriched.length) {
-    resultsEl.innerHTML = '<div class="agent-empty"><span class="agent-empty-icon">✅</span><span>No known Testsigma error signatures detected.<br/>Log appears clean or contains an unrecognized pattern.</span></div>';
+    /* Option B: green clean-state banner, exact message as specified */
+    resultsEl.innerHTML = '<div class="agent-clean-banner"><span class="cb-icon">✅</span><div class="cb-body"><div class="cb-title">No issues detected. Agent logs are clean and operating within standard framework parameters.</div></div></div>';
     toolbarEl.style.display = 'flex';
-    labelEl.textContent = 'No signatures matched';
+    labelEl.textContent = 'Clean — 0 signatures';
+    agentSetKbBadge('found', 'KB: no issues to log');
+    const sideSum = $('agentSideSummary');
+    const sideLbl = $('agentSideLabel');
+    if (sideSum) sideSum.style.display = 'flex';
+    if (sideLbl) sideLbl.textContent = 'Clean log';
     return;
   }
 
@@ -1823,13 +1905,9 @@ async function agentAnalyze(rawText, sourceName) {
   let html = '';
 
   if (hasCritical) {
-    html += `<div class="agent-critical-banner">
-      <span class="cb-icon">⚠</span>
-      <div class="cb-body">
-        <div class="cb-title">CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div>
-        <div class="cb-sub">${enriched.filter(e=>e.sig.critical).map(e=>e.sig.label).join(' · ')} — requires specialist intervention before re-running tests.</div>
-      </div>
-    </div>`;
+    html += '<div class="agent-critical-banner"><span class="cb-icon">⚠</span><div class="cb-body"><div class="cb-title">CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div><div class="cb-sub">' +
+      enriched.filter(e => e.sig.critical).map(e => e.sig.label).join(' · ') +
+      ' — specialist intervention required before re-run.</div></div></div>';
   }
 
   enriched.forEach(({ sig, matchedLine, kbMatch }) => {
@@ -1838,48 +1916,57 @@ async function agentAnalyze(rawText, sourceName) {
 
   resultsEl.innerHTML = html;
   toolbarEl.style.display = 'flex';
-  labelEl.textContent = enriched.length + ' signature' + (enriched.length > 1 ? 's' : '') + ' detected — ' + (hasCritical ? '⚠ critical' : 'review recommended');
-  /* Sync side pane summary label */
+
+  const countLabel = enriched.length + ' signature' + (enriched.length > 1 ? 's' : '') + ' — ' + (hasCritical ? '⚠ critical' : 'review');
+  labelEl.textContent = countLabel;
+
   const sideSum = $('agentSideSummary');
   const sideLbl = $('agentSideLabel');
   if (sideSum) sideSum.style.display = 'flex';
   if (sideLbl) sideLbl.textContent = enriched.length + ' signature' + (enriched.length > 1 ? 's' : '') + ' detected';
+  agentSetKbBadge('found', 'KB: sync complete');
 }
 
-// -- Build a match card HTML string ------------------------------------------
+// -- KB badge helper ---------------------------------------------------------
+function agentSetKbBadge(state, text) {
+  const bar   = $('agentKbStatusBar');
+  const badge = $('agentKbBadge');
+  const label = $('agentKbBadgeText');
+  if (!bar || !badge || !label) return;
+  bar.classList.add('visible');
+  badge.className = 'agent-kb-badge ' + state;
+  const dot = badge.querySelector('.kb-dot');
+  if (dot) {
+    dot.className = 'kb-dot' + (state === 'searching' ? ' pulse' : '');
+  }
+  label.textContent = text;
+  console.log('[Agent KB Badge]', state, '—', text);
+}
+
+// -- Compact match card (token-optimised) ------------------------------------
 function buildMatchCard(sig, matchedLine, kbMatch) {
-  const escLine = matchedLine ? escHtml(matchedLine.slice(0, 300)) : 'See log text';
-  const kbSection = kbMatch
-    ? `<div>
-        <div class="amc-section-label">Knowledge Base Match</div>
-        <div class="amc-kb-match">
-          <strong>Issue #${kbMatch.number}:</strong> ${escHtml(kbMatch.title)}<br/>
-          ${kbMatch.body ? escHtml(kbMatch.body.slice(0, 200)) + (kbMatch.body.length > 200 ? '...' : '') : ''}
-          <br/><a href="${kbMatch.url}" target="_blank" rel="noopener">View full KB entry →</a>
-        </div>
-      </div>`
-    : `<div class="amc-kb-status">No prior KB entry — this occurrence has been auto-logged for future reference.</div>`;
+  const escLine = matchedLine ? escHtml(matchedLine.slice(0, 200)) : 'See log';
 
-  return `<div class="agent-match-card">
-    <div class="amc-header">
-      <span class="amc-sig-badge ${sig.badgeClass}">${sig.tier.toUpperCase()}</span>
-      <span class="amc-title">${escHtml(sig.label)}</span>
-    </div>
-    <div class="amc-body">
-      <div>
-        <div class="amc-section-label">Matched Exception</div>
-        <div class="amc-exception">${escLine}</div>
-      </div>
-      <div>
-        <div class="amc-section-label">Resolution</div>
-        <div class="amc-fix">${sig.fix}</div>
-      </div>
-      ${kbSection}
-    </div>
-  </div>`;
+  const kbSection = kbMatch
+    ? '<div><div class="amc-section-label">KB Match</div><div class="amc-kb-match"><strong>Issue #' +
+        kbMatch.number + ':</strong> ' + escHtml(kbMatch.title) +
+        ' <a href="' + kbMatch.url + '" target="_blank" rel="noopener">→</a></div></div>'
+    : '<div class="amc-kb-status">Novel pattern — auto-logged to KB.</div>';
+
+  return '<div class="agent-match-card">' +
+    '<div class="amc-header">' +
+      '<span class="amc-sig-badge ' + sig.badgeClass + '">' + sig.tier.toUpperCase() + '</span>' +
+      '<span class="amc-title">' + escHtml(sig.label) + '</span>' +
+    '</div>' +
+    '<div class="amc-body">' +
+      '<div><div class="amc-section-label">Exception</div><div class="amc-exception">' + escLine + '</div></div>' +
+      '<div><div class="amc-section-label">Fix</div><div class="amc-fix-compact">' + sig.fix + '</div></div>' +
+      kbSection +
+    '</div>' +
+  '</div>';
 }
 
-// -- Extract exception lines from raw text -----------------------------------
+// -- Extract exception lines -------------------------------------------------
 function extractExceptions(text) {
   const lines = text.split('\n');
   return lines
@@ -1889,7 +1976,7 @@ function extractExceptions(text) {
     .slice(0, 10);
 }
 
-// -- Find the specific line that triggered the match -------------------------
+// -- Find line that triggered the match --------------------------------------
 function findMatchedLine(text, keywords) {
   const lines = text.split('\n');
   for (const line of lines) {
@@ -1899,7 +1986,7 @@ function findMatchedLine(text, keywords) {
   return null;
 }
 
-// -- KB lookup via Worker proxy (/issues-lookup route) -----------------------
+// -- KB lookup via Worker (/issues-lookup) -----------------------------------
 async function agentKBLookup(sigId, exceptionLines) {
   try {
     const query = encodeURIComponent(sigId + ' ' + exceptionLines.slice(0, 2).join(' '));
@@ -1911,41 +1998,39 @@ async function agentKBLookup(sigId, exceptionLines) {
     if (!Array.isArray(issues) || !issues.length) return null;
     const match = issues[0];
     return { number: match.number, title: match.title, body: match.body, url: match.html_url };
-  } catch(_) {
-    return null;   /* Silent — KB unavailable doesn't block analysis */
+  } catch(e) {
+    console.warn('[Agent KB] Lookup error:', e.message);
+    return null;
   }
 }
 
-// -- Auto-log novel pattern to KB repo (/log-report route) -------------------
+// -- Auto-log novel pattern to KB repo (/log-report) -------------------------
 async function agentKBAutoLog(sig, matchedLine, sourceName, exceptionLines) {
   const title = '[' + sig.id + '] ' + sig.label + ' — auto-logged from ' + sourceName;
   const body  = [
-    '**Signature ID:** ' + sig.id,
-    '**Category:** ' + sig.tier,
+    '**Signature:** ' + sig.id + ' · **Category:** ' + sig.tier,
     '**Source:** ' + sourceName,
     '',
-    '**Matched exception:**',
+    '**Exception:**',
     '```',
     (matchedLine || 'N/A').slice(0, 500),
     '```',
-    '',
-    '**Additional exception lines:**',
+    '**Additional lines:**',
     '```',
     exceptionLines.slice(0, 5).join('\n'),
     '```',
+    '**Resolution:** ' + sig.fix.replace(/<[^>]+>/g, ''),
     '',
-    '**Resolution applied:**',
-    sig.fix.replace(/<[^>]+>/g, ''),  /* strip HTML tags for plain text */
-    '',
-    '---',
-    '_Auto-logged by Testsigma Analyser · ' + new Date().toISOString() + '_'
+    '_Auto-logged · ' + new Date().toISOString() + '_'
   ].join('\n');
 
-  await fetch(AGENT_LOG_ROUTE, {
+  const res = await fetch(AGENT_LOG_ROUTE, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ title, body, labels: ['known-issue', 'auto-logged', sig.tier] })
   });
+  const data = await res.json();
+  return data.number;
 }
 
 // -- Error helper ------------------------------------------------------------
@@ -1954,82 +2039,56 @@ function agentShowError(msg) {
   if (el) el.innerHTML = '<div class="agent-empty" style="color:var(--red)">' + escHtml(msg) + '</div>';
 }
 
-// -- Report download (.docx via html-docx-js, fallback to .html) -------------
+// -- Report download (.docx via html-docx-js, fallback .html) ----------------
 function agentDownloadReport() {
   if (!agentLastResults.length) return;
-
   const hasCritical = agentLastResults.some(e => e.sig.critical);
   const timestamp   = new Date().toLocaleString();
+  const reportHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Testsigma Agent Log Report</title>' +
+    '<style>body{font-family:Arial,sans-serif;color:#0F172A;margin:40px;line-height:1.6}' +
+    'h1{font-size:20px;color:#1E1B4B;border-bottom:3px solid #4F46E5;padding-bottom:8px}' +
+    '.critical{background:#DC2626;color:#fff;padding:12px 16px;border-radius:6px;margin:14px 0;font-weight:700}' +
+    '.clean{background:#059669;color:#fff;padding:12px 16px;border-radius:6px;margin:14px 0;font-weight:700}' +
+    '.card{border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;margin-bottom:12px}' +
+    '.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;margin-bottom:6px}' +
+    '.infra{background:#FEF2F2;color:#DC2626}.dev{background:#FDF4FF;color:#7C3AED}' +
+    '.arch{background:#FFF7ED;color:#C2410C}.config{background:#ECFDF5;color:#059669}' +
+    '.rate{background:#FFFBEB;color:#D97706}.network{background:#EFF6FF;color:#2563EB}' +
+    'pre{background:#F1F5F9;padding:7px 9px;border-radius:4px;font-size:10px;white-space:pre-wrap}' +
+    '.kb{background:#EEF2FF;border:1px solid #C7D2FE;padding:7px 9px;border-radius:4px;font-size:11px}' +
+    '.footer{margin-top:28px;font-size:10px;color:#64748B;border-top:1px solid #E2E8F0;padding-top:10px}' +
+    '</style></head><body>' +
+    '<h1>Testsigma Agent Log Report</h1>' +
+    '<p style="font-size:11px;color:#64748B">Generated: ' + timestamp + '</p>' +
+    (hasCritical ? '<div class="critical">⚠ CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div>' : '') +
+    agentLastResults.map(({sig, matchedLine, kbMatch}) =>
+      '<div class="card">' +
+      '<div class="badge ' + sig.badgeClass + '">' + sig.tier + '</div>' +
+      '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + escHtml(sig.label) + '</div>' +
+      '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748B;margin-bottom:3px">Exception</div>' +
+      '<pre>' + escHtml((matchedLine || 'See log').slice(0, 300)) + '</pre>' +
+      '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748B;margin:8px 0 3px">Fix</div>' +
+      '<div style="font-size:11px">' + sig.fix + '</div>' +
+      (kbMatch ? '<div style="margin-top:8px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748B;margin-bottom:3px">KB Match</div><div class="kb">Issue #' + kbMatch.number + ': ' + escHtml(kbMatch.title) + '</div></div>' : '') +
+      '</div>'
+    ).join('') +
+    '<div class="footer">Testsigma Analyser · ' + agentLastResults.length + ' signature(s) · ' + AGENT_KB_REPO + '</div>' +
+    '</body></html>';
 
-  const reportHtml = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>Testsigma Agent Log Analysis Report</title>
-<style>
-  body{font-family:Arial,sans-serif;color:#0F172A;margin:40px;line-height:1.6}
-  h1{font-size:20px;color:#1E1B4B;border-bottom:3px solid #4F46E5;padding-bottom:8px}
-  h2{font-size:14px;color:#4F46E5;text-transform:uppercase;letter-spacing:.06em;margin-top:24px}
-  .critical-banner{background:#DC2626;color:#fff;padding:14px 18px;border-radius:6px;margin:16px 0;font-weight:700}
-  .card{border:1px solid #E2E8F0;border-radius:8px;padding:14px 16px;margin-bottom:14px;page-break-inside:avoid}
-  .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;margin-bottom:8px}
-  .badge.infra{background:#FEF2F2;color:#DC2626}
-  .badge.dev{background:#FDF4FF;color:#7C3AED}
-  .badge.arch{background:#FFF7ED;color:#C2410C}
-  .badge.config{background:#ECFDF5;color:#059669}
-  .badge.rate{background:#FFFBEB;color:#D97706}
-  .badge.network{background:#EFF6FF;color:#2563EB}
-  .card-title{font-size:13px;font-weight:700;margin-bottom:10px}
-  .label{font-size:9px;text-transform:uppercase;font-weight:700;color:#64748B;letter-spacing:.06em;margin-bottom:4px}
-  pre{background:#F1F5F9;padding:8px 10px;border-radius:4px;font-size:10px;overflow-wrap:break-word;white-space:pre-wrap}
-  .fix{font-size:11px}
-  .kb{background:#EEF2FF;border:1px solid #C7D2FE;padding:8px 10px;border-radius:4px;font-size:11px}
-  .footer{margin-top:32px;font-size:10px;color:#64748B;border-top:1px solid #E2E8F0;padding-top:12px}
-</style>
-</head>
-<body>
-<h1>Testsigma Agent Log Analysis Report</h1>
-<p style="font-size:11px;color:#64748B">Generated: ${timestamp}</p>
-${hasCritical ? '<div class="critical-banner">⚠ CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div>' : ''}
-${agentLastResults.map(({sig, matchedLine, kbMatch}) => `
-<div class="card">
-  <div class="badge ${sig.badgeClass}">${sig.tier}</div>
-  <div class="card-title">${escHtml(sig.label)}</div>
-  <div class="label">Matched Exception</div>
-  <pre>${escHtml((matchedLine || 'See log text').slice(0, 400))}</pre>
-  <div class="label" style="margin-top:10px">Resolution</div>
-  <div class="fix">${sig.fix}</div>
-  ${kbMatch ? `<div style="margin-top:10px"><div class="label">Knowledge Base Match</div><div class="kb"><strong>Issue #${kbMatch.number}:</strong> ${escHtml(kbMatch.title)}</div></div>` : ''}
-</div>`).join('')}
-<div class="footer">Testsigma Analyser · ${agentLastResults.length} signature(s) detected · ${AGENT_KB_REPO}</div>
-</body>
-</html>`;
-
-  /* Try .docx via html-docx-js if loaded; fall back to .html */
   try {
-    if (typeof HTMLtoDOCX !== 'undefined') {
-      HTMLtoDOCX(reportHtml, null, {
-        title:  'Testsigma Agent Log Report',
-        margin: { top: 720, right: 720, bottom: 720, left: 720 }
-      }).then(blob => {
-        agentTriggerDownload(blob, 'Testsigma_Agent_Report.docx');
-      });
-    } else if (window.htmlDocx && window.htmlDocx.asBlob) {
-      const blob = window.htmlDocx.asBlob(reportHtml);
-      agentTriggerDownload(blob, 'Testsigma_Agent_Report.docx');
+    if (window.htmlDocx && window.htmlDocx.asBlob) {
+      agentTriggerDownload(window.htmlDocx.asBlob(reportHtml), 'Testsigma_Agent_Report.docx');
     } else {
       throw new Error('html-docx-js not available');
     }
   } catch(_) {
-    /* Fallback: download as .html */
-    const blob = new Blob([reportHtml], { type: 'text/html' });
-    agentTriggerDownload(blob, 'Testsigma_Agent_Report.html');
+    agentTriggerDownload(new Blob([reportHtml], { type: 'text/html' }), 'Testsigma_Agent_Report.html');
   }
 }
 
 function agentTriggerDownload(blob, filename) {
-  const a  = document.createElement('a');
-  a.href   = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
