@@ -1,0 +1,1930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Testsigma Performance Optimization Matrix</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#F8FAFC;--card:#fff;--border:#E2E8F0;--text:#0F172A;--muted:#64748B;--accent:#4F46E5;--accent-light:#EEF2FF;--green:#059669;--green-light:#ECFDF5;--red:#DC2626;--amber:#D97706}
+body{background:var(--bg);font-family:Inter,system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;font-size:13px;min-height:100vh;padding:0}
+.shell{display:grid;grid-template-rows:auto 1fr;height:100vh}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.topbar-left h1{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-0.01em}
+.topbar-left p{font-size:10px;color:var(--muted);margin-top:1px}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topbar-right select,.topbar-right input{height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:11px;font-family:inherit;color:var(--text);background:var(--bg);outline:none}
+.topbar-right input{width:200px;font-family:ui-monospace,monospace}
+.main{display:grid;grid-template-columns:48px 310px 1fr;overflow:hidden}
+/* ── Nav rail ── */
+.nav-rail{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;z-index:10}
+.nav-rail-btn{width:36px;height:36px;border-radius:8px;border:none;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);transition:.15s;position:relative}
+.nav-rail-btn:hover{background:var(--accent-light);color:var(--accent)}
+.nav-rail-btn.active{background:var(--accent-light);color:var(--accent)}
+.nav-rail-btn .nav-icon{font-size:16px;line-height:1}
+.nav-rail-btn .nav-label{font-size:7px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.nav-rail-btn.active .nav-label{color:var(--accent)}
+/* ── Side panes ── */
+.side-pane{background:var(--card);border-right:1px solid var(--border);display:none;flex-direction:column;overflow-y:auto;width:310px}
+.side-pane.active{display:flex}
+/* ── Analyser pane ── */
+.pane-analyser{padding:14px;gap:10px}
+/* ── Feedback pane ── */
+.pane-feedback{padding:16px;gap:14px}
+.fb-pane-title{font-size:13px;font-weight:800;color:var(--text)}
+.fb-pane-sub{font-size:11px;color:var(--muted);line-height:1.5}
+.fb-type-grid{display:flex;flex-direction:column;gap:6px}
+.fb-type-btn{width:100%;height:34px;border-radius:7px;border:1.5px solid var(--border);background:transparent;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s;text-align:left;padding:0 12px;display:flex;align-items:center;gap:8px}
+.fb-type-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.fb-type-btn.sel{border-color:var(--accent);background:var(--accent-light);color:var(--accent)}
+.fb-type-btn .fb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fb-textarea{width:100%;height:110px;border:1px solid var(--border);border-radius:7px;padding:9px;font-size:11px;font-family:Inter,sans-serif;color:var(--text);background:var(--bg);resize:none;outline:none;box-sizing:border-box;line-height:1.5}
+.fb-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
+.fb-submit{width:100%;height:34px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:.15s;letter-spacing:.03em}
+.fb-submit:hover{background:#4338CA}
+.fb-note{font-size:9px;color:var(--muted);text-align:center;line-height:1.6;padding:0 4px}
+.fb-divider{border:none;border-top:1px solid var(--border);margin:0}
+.fb-repo-chip{font-size:9px;font-family:ui-monospace,monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--muted);display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* legacy FAB -- hidden, replaced by pane */
+.feedback-fab{display:none!important}
+.feedback-drawer{display:none!important}
+/* ── Docs pane ── */
+.pane-docs{padding:0;overflow:hidden;display:none;flex-direction:column}
+.pane-docs.active{display:flex}
+.docs-subtab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;overflow-x:auto}
+.docs-subtab{padding:8px 12px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:.15s;user-select:none;background:transparent;border-top:none;border-left:none;border-right:none}
+.docs-subtab:hover{color:var(--accent)}
+.docs-subtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.docs-subtab-panel{display:none;flex:1;overflow-y:auto;padding:14px}
+.docs-subtab-panel.active{display:block}
+/* Doc content typography */
+.doc-section{margin-bottom:18px}
+.doc-h1{font-size:13px;font-weight:800;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.doc-h1 .doc-icon{font-size:15px}
+.doc-h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:5px;margin-top:12px}
+.doc-p{font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:6px}
+.doc-step{display:flex;gap:8px;margin-bottom:7px;align-items:flex-start}
+.doc-step-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.doc-step-body{flex:1}
+.doc-step-title{font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px}
+.doc-step-desc{font-size:10px;color:var(--muted);line-height:1.6}
+.doc-chip{display:inline-block;font-size:9px;font-family:ui-monospace,monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text);white-space:nowrap}
+.doc-badge{display:inline-block;font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;vertical-align:middle;margin-left:3px}
+.doc-badge.green{background:#ECFDF5;color:#059669}
+.doc-badge.amber{background:#FFFBEB;color:#D97706}
+.doc-badge.indigo{background:var(--accent-light);color:var(--accent)}
+.doc-badge.purple{background:#FDF4FF;color:#7C3AED}
+.doc-divider{border:none;border-top:1px solid var(--border);margin:12px 0}
+.doc-tip{background:var(--accent-light);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 10px;font-size:10px;color:var(--text);line-height:1.6;margin-bottom:8px}
+.doc-warn{background:#FFFBEB;border-left:3px solid var(--amber);border-radius:0 6px 6px 0;padding:8px 10px;font-size:10px;color:var(--text);line-height:1.6;margin-bottom:8px}
+.doc-where{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:8px}
+.doc-where-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:10px}
+.doc-where-row:last-child{margin-bottom:0}
+.doc-where-key{font-weight:700;color:var(--text);min-width:90px;flex-shrink:0}
+.doc-where-val{color:var(--muted);line-height:1.5}
+.doc-flow{display:flex;flex-direction:column;gap:0}
+.doc-flow-step{display:flex;align-items:stretch;gap:10px}
+.doc-flow-line{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:20px}
+.doc-flow-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:4px}
+.doc-flow-track{width:2px;background:var(--border);flex:1;margin:2px 0}
+.doc-flow-step:last-child .doc-flow-track{display:none}
+.doc-flow-body{padding-bottom:10px;flex:1}
+.doc-flow-title{font-size:11px;font-weight:700;color:var(--text)}
+.doc-flow-desc{font-size:10px;color:var(--muted);line-height:1.5;margin-top:1px}
+.runs-container{display:flex;flex-direction:column;gap:8px}
+.run-block{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg)}
+.run-header{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--card);border-bottom:1px solid var(--border)}
+.run-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.run-label span{display:inline-block;width:16px;height:16px;border-radius:4px;font-size:9px;font-weight:800;text-align:center;line-height:16px;margin-right:5px;color:#fff}
+.run-1 span{background:#4F46E5}.run-2 span{background:#0891B2}.run-3 span{background:#7C3AED}
+.remove-btn{width:18px;height:18px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.1s}
+.remove-btn:hover{background:#FEE2E2;color:var(--red)}
+.run-body{padding:8px}
+.drop-zone{border:1.5px dashed var(--border);border-radius:7px;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;color:var(--muted);margin-bottom:6px;transition:.15s;background:var(--card);user-select:none}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.drop-zone.loaded{border-color:var(--green);color:var(--green);background:var(--green-light)}
+.drop-zone i{font-style:normal;font-size:13px;flex-shrink:0}
+.drop-zone span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+textarea{width:100%;padding:7px;background:var(--card);border:1px solid var(--border);border-radius:7px;font-family:ui-monospace,monospace;font-size:10px;resize:vertical;outline:none;color:var(--text);line-height:1.5}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
+.add-run-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;height:32px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);transition:.15s}
+.add-run-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.add-run-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.btn{width:100%;height:34px;border-radius:7px;border:none;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#4338CA}
+.btn-primary:disabled{background:#C7D2FE;cursor:not-allowed}
+.btn-export{background:var(--green);color:#fff}
+.btn-export:hover{background:#047857}
+.btn-export:disabled{background:#D1FAE5;color:#6EE7B7;cursor:not-allowed}
+.btn-log{background:transparent;border:1px solid var(--border);color:var(--muted);font-size:10px;height:28px}
+.btn-log:hover{background:var(--bg);color:var(--text)}
+.status{font-size:10px;font-weight:600;text-align:center;padding:8px;border-radius:6px;background:var(--bg)}
+.status.blue{color:var(--accent);background:var(--accent-light)}
+.status.green{color:var(--green);background:var(--green-light)}
+.status.red{color:var(--red);background:#FEF2F2}
+.status.amber{color:var(--amber);background:#FFFBEB}
+.progress-bar-wrap{width:100%;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.progress-bar{height:4px;background:var(--accent);border-radius:2px;transition:width .4s ease;width:0%}
+.content{display:flex;flex-direction:column;overflow:hidden}
+.kpi-bar{display:none;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--card);gap:12px;flex-wrap:wrap}
+.kpi-bar.visible{display:flex}
+.kpi{flex:1;min-width:110px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.kpi-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi-val{font-size:18px;font-weight:800;margin-top:2px}
+.kpi.accent .kpi-val{color:var(--accent)}
+.kpi.green .kpi-val{color:var(--green)}
+.content-body{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--card);padding:0 20px}
+.tab{padding:9px 14px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s;user-select:none}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none;flex:1;overflow:auto}
+.tab-panel.active{display:flex;flex-direction:column}
+.table-wrap{flex:1;overflow:auto;padding:16px 20px}
+.tbl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.tbl-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:4px;background:var(--accent-light);color:var(--accent)}
+.tag.amber{background:#FFFBEB;color:var(--amber)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead tr{background:var(--bg)}
+th{padding:8px 10px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even) td{background:rgba(248,250,252,.7)}
+tr.fallback-row td{background:#FFFBEB}
+.step-id{font-family:ui-monospace,monospace;font-size:10px;font-weight:700;color:var(--muted)}
+.action-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--text)}
+.time-cell{font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.expected-cell{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+.suggestion-cell{color:#334155;line-height:1.5;font-size:11px;max-width:240px}
+.suggestion-cell.fallback{color:var(--amber);font-style:italic}
+.delta{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px}
+.delta.up{color:var(--red);background:#FEF2F2}
+.delta.down{color:var(--green);background:var(--green-light)}
+/* Log panel */
+.log-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.log-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--card);gap:8px;flex-shrink:0}
+.log-toolbar-left{display:flex;align-items:center;gap:8px}
+.log-filter{height:26px;border:1px solid var(--border);border-radius:5px;padding:0 8px;font-size:10px;font-family:inherit;color:var(--text);background:var(--bg);outline:none}
+.log-entries{flex:1;overflow-y:auto;padding:10px 20px;font-family:ui-monospace,monospace;font-size:10.5px;line-height:1.7;background:var(--bg)}
+.log-entry{display:flex;gap:10px;padding:2px 0;border-bottom:1px solid transparent}
+.log-entry:hover{background:rgba(79,70,229,.03)}
+.log-ts{color:var(--muted);white-space:nowrap;flex-shrink:0;font-size:10px}
+.log-level{font-weight:700;width:46px;flex-shrink:0;font-size:10px}
+.log-level.INFO{color:#0891B2}
+.log-level.OK{color:var(--green)}
+.log-level.WARN{color:var(--amber)}
+.log-level.ERROR{color:var(--red)}
+.log-level.DEBUG{color:var(--muted)}
+.log-msg{color:var(--text);word-break:break-all}
+.log-empty{text-align:center;padding:40px;color:var(--muted);font-family:Inter,sans-serif}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ── Run block input mode toggle ── */
+.input-mode-toggle{display:flex;gap:0;margin-bottom:6px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.mode-btn{flex:1;height:24px;border:none;background:transparent;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
+.mode-btn.active{background:var(--accent);color:#fff}
+.mode-panel{display:none}
+.mode-panel.active{display:block}
+/* ── Testsigma fetch form ── */
+.ts-form{display:flex;flex-direction:column;gap:5px}
+.ts-field{display:flex;flex-direction:column;gap:2px}
+.ts-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ts-input{height:28px;border:1px solid var(--border);border-radius:5px;padding:0 8px;font-size:11px;font-family:ui-monospace,monospace;color:var(--text);background:var(--card);outline:none;width:100%}
+.ts-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
+.ts-fetch-btn{height:28px;border-radius:5px;border:none;background:var(--accent);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:.15s;width:100%;margin-top:2px}
+.ts-fetch-btn:hover{background:#4338CA}
+.ts-fetch-btn:disabled{background:#C7D2FE;cursor:not-allowed}
+.ts-status{font-size:10px;font-weight:600;padding:5px 8px;border-radius:5px;display:none;margin-top:3px;line-height:1.4}
+.ts-status.blue{display:block;color:var(--accent);background:var(--accent-light)}
+.ts-status.green{display:block;color:var(--green);background:var(--green-light)}
+.ts-status.red{display:block;color:var(--red);background:#FEF2F2}
+.ts-token-wrap{position:relative}
+.ts-token-wrap .ts-input{padding-right:52px}
+.ts-toggle-vis{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:700;color:var(--accent);cursor:pointer;user-select:none;background:none;border:none;padding:0}
+/* ── Curl generator ── */
+.curl-box{background:#0F172A;border-radius:7px;padding:10px;font-family:ui-monospace,monospace;font-size:10px;color:#94A3B8;line-height:1.7;white-space:pre-wrap;word-break:break-all;margin-top:6px;max-height:180px;overflow-y:auto;display:none}
+.curl-box.visible{display:block}
+.curl-copy-btn{width:100%;height:26px;border-radius:5px;border:none;background:#1E293B;color:#94A3B8;font-size:10px;font-weight:700;cursor:pointer;margin-top:4px;display:none}
+.curl-copy-btn.visible{display:block}
+.curl-copy-btn:hover{background:#334155;color:#fff}
+/* ── Feedback panel ── */
+.feedback-fab{position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(79,70,229,.4);z-index:999;transition:.2s;display:flex;align-items:center;justify-content:center}
+.feedback-fab:hover{background:#4338CA;transform:scale(1.08)}
+.feedback-drawer{position:fixed;bottom:80px;right:24px;width:320px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);z-index:998;padding:16px;display:none;flex-direction:column;gap:10px}
+.feedback-drawer.open{display:flex}
+.feedback-title{font-size:13px;font-weight:700;color:var(--text)}
+.feedback-sub{font-size:11px;color:var(--muted);margin-top:-6px}
+.feedback-type{display:flex;gap:6px}
+.feedback-type button{flex:1;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
+.feedback-type button.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.feedback-textarea{width:100%;height:80px;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;font-family:Inter,sans-serif;color:var(--text);background:var(--bg);resize:none;outline:none;box-sizing:border-box}
+.feedback-textarea:focus{border-color:var(--accent)}
+.feedback-submit{height:32px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:.15s}
+.feedback-submit:hover{background:#4338CA}
+.feedback-note{font-size:9px;color:var(--muted);text-align:center;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1>Testsigma · Performance Optimization Matrix</h1>
+      <p>Ingest raw step telemetry to isolate automation bottlenecks and compute suite efficiency targets.</p>
+    </div>
+    <div class="topbar-right">
+      <select id="aiEngine">
+        <option value="gemini">Google Gemini 2.5 Flash</option>
+        <option value="claude">Anthropic Claude 3.5 Sonnet</option>
+        <option value="copilot">GitHub Copilot / GPT-4o</option>
+      </select>
+      <input id="aiKey" type="password" placeholder="AI API key..."/>
+      <input id="tsTokenGlobal" type="password" placeholder="Testsigma API Key (used as Bearer)..." style="width:220px" title="Settings → API Keys in Testsigma. Used as Bearer token in all API calls."/>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- ── Nav Rail ── -->
+    <nav class="nav-rail">
+      <button class="nav-rail-btn active" id="navAnalyser" onclick="switchPane('analyser')" title="Analyser">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-label">Analyse</span>
+      </button>
+      <button class="nav-rail-btn" id="navFeedback" onclick="switchPane('feedback')" title="Feedback">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">Feedback</span>
+      </button>
+      <button class="nav-rail-btn" id="navDocs" onclick="switchPane('docs')" title="Docs">
+        <span class="nav-icon">📖</span>
+        <span class="nav-label">Docs</span>
+      </button>
+    </nav>
+
+    <!-- ── Analyser Pane ── -->
+    <aside class="side-pane pane-analyser active" id="paneAnalyser">
+      <div class="runs-container" id="runsContainer"></div>
+      <button class="add-run-btn" id="addRunBtn">＋ Add comparison run</button>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:2px">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary" id="processBtn" style="flex:1">Generate Insights</button>
+          <button class="btn" id="abortBtn" title="Cancel analysis" style="width:34px;background:#FEF2F2;color:var(--red);border:1px solid #FECACA;display:none;font-size:16px;padding:0">✕</button>
+        </div>
+        <button class="btn btn-export" id="exportExcelBtn" disabled>Export Report</button>
+      </div>
+      <div id="statusMsg" class="status">System idle</div>
+      <div class="progress-bar-wrap" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </aside>
+
+    <!-- ── Feedback Pane ── -->
+    <aside class="side-pane pane-feedback" id="paneFeedback">
+      <div class="fb-pane-title">Feedback &amp; Suggestions</div>
+      <div class="fb-pane-sub">Submit directly as a GitHub Issue. Includes your browser and session context automatically.</div>
+      <hr class="fb-divider"/>
+      <div class="fb-type-grid">
+        <button class="fb-type-btn sel" id="fbTypeBug" onclick="setFbType('bug')">
+          <span class="fb-dot" style="background:#DC2626"></span>Bug Report
+        </button>
+        <button class="fb-type-btn" id="fbTypeFeature" onclick="setFbType('feature')">
+          <span class="fb-dot" style="background:#7C3AED"></span>Feature Request
+        </button>
+        <button class="fb-type-btn" id="fbTypeImprovement" onclick="setFbType('improvement')">
+          <span class="fb-dot" style="background:#D97706"></span>Improvement
+        </button>
+      </div>
+      <textarea class="fb-textarea" id="fbText" placeholder="Describe the issue or idea clearly. The more specific the better."></textarea>
+      <button class="fb-submit" onclick="submitFeedback()">Open as GitHub Issue →</button>
+      <div class="fb-note">
+        Opens GitHub in a new tab. Sign in to post.<br/>
+        Repo: <span class="fb-repo-chip" id="fbRepoLabel">set FEEDBACK_REPO in script</span>
+      </div>
+    </aside>
+
+    <!-- ── Docs Pane ── -->
+    <aside class="side-pane pane-docs" id="paneDocs">
+      <!-- Subtab bar -- add more subtabs here as needed -->
+      <div class="docs-subtab-bar">
+        <button class="docs-subtab active" data-docs="gettingStarted" onclick="switchDocsTab('gettingStarted')">Getting Started</button>
+        <button class="docs-subtab" data-docs="howItWorks" onclick="switchDocsTab('howItWorks')">How It Works</button>
+      </div>
+
+      <!-- ── Getting Started subtab ── -->
+      <div class="docs-subtab-panel active" id="docsPanelGettingStarted">
+
+        <div class="doc-section">
+          <div class="doc-h1"><span class="doc-icon">🚀</span>Quick Setup</div>
+          <div class="doc-p">Three things to have ready before you start:</div>
+          <div class="doc-where">
+            <div class="doc-where-row">
+              <span class="doc-where-key">AI API Key</span>
+              <span class="doc-where-val">Powers optimization suggestions. Get a free Gemini key at <strong>aistudio.google.com</strong> → Get API Key. Paste into the top-right <span class="doc-chip">AI API key</span> field.</span>
+            </div>
+            <div class="doc-where-row">
+              <span class="doc-where-key">Testsigma API Key</span>
+              <span class="doc-where-val">Generated from inside Testsigma — see steps below. Used as the Bearer token in all API calls. Paste into the <span class="doc-chip">Testsigma Bearer token</span> field top-right.</span>
+            </div>
+            <div class="doc-where-row">
+              <span class="doc-where-key">Run ID</span>
+              <span class="doc-where-val">Numeric ID of the test run. Found in the Testsigma URL when viewing a run.</span>
+            </div>
+            <div class="doc-where-row">
+              <span class="doc-where-key">Case Result ID</span>
+              <span class="doc-where-val">Numeric ID of the specific test case result within that run.</span>
+            </div>
+          </div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">How to generate your Testsigma API Key</div>
+          <div class="doc-warn"><strong>Admin or Super Admin role required.</strong> Only users with Admin or Super Admin roles can generate API keys in Testsigma. If you don't have this role, ask your Testsigma admin to generate one for you.</div>
+          <div class="doc-step">
+            <div class="doc-step-num">1</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Go to Settings → API Keys</div>
+              <div class="doc-step-desc">In Testsigma, navigate to <strong>Settings</strong> in the left-side navbar → click <strong>API Keys</strong>.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">2</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Click "Generate new API Key"</div>
+              <div class="doc-step-desc">Top-right corner of the API Keys page. A <strong>Generate API Key</strong> pop-up overlay will appear.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">3</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Name it and configure parallel settings</div>
+              <div class="doc-step-desc">Enter a name (e.g. <span class="doc-chip">analyzer-tool</span>). Optionally set the number of parallel test executions allowed for this key. Click <strong>Generate Key</strong>.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">4</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Copy the API Key</div>
+              <div class="doc-step-desc">The key is displayed on screen. Click <strong>Copy API Key</strong>. This is the value you paste into the <span class="doc-chip">Testsigma Bearer token</span> field in this tool — it is used as <span class="doc-chip">Authorization: Bearer &lt;API_Key&gt;</span> in every API request.</div>
+            </div>
+          </div>
+          <div class="doc-tip">The API key does not expire with your session — unlike a session token it persists until you delete it. Store it securely; treat it like a password.</div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">Where to find Run ID &amp; Case Result ID</div>
+          <div class="doc-step">
+            <div class="doc-step-num">1</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Open a Test Run in Testsigma</div>
+              <div class="doc-step-desc">Go to Test Runs → click any completed run.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">2</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Check the URL for the Run ID</div>
+              <div class="doc-step-desc">The URL looks like:<br/><span class="doc-chip">app.testsigma.com/ui/runs/<strong>28760</strong>/details</span><br/>That number is your <strong>Run ID</strong>.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">3</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Click into a specific test case result</div>
+              <div class="doc-step-desc">The URL updates to include the Case Result ID:<br/><span class="doc-chip">…/test_case_results/<strong>287130</strong>/…</span><br/>That number is your <strong>Case Result ID</strong>.</div>
+            </div>
+          </div>
+          <div class="doc-warn">Both IDs change with every new run. Always use IDs from the specific run you want to analyse. The API Key however is reusable across runs.</div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">Running the Analyser</div>
+          <div class="doc-step">
+            <div class="doc-step-num">1</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Switch to the Analyser tab</div>
+              <div class="doc-step-desc">Click <span class="doc-chip">⚡ Analyse</span> in the left rail.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">2</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Choose input method</div>
+              <div class="doc-step-desc"><strong>Fetch Live</strong> — enter Run ID + Case Result ID, click Fetch All Pages. Auto-paginates all pages.<br/><strong>File / Paste</strong> — upload a JSON exported from Postman, or paste raw JSON.<br/><strong>curl</strong> — generates a shell script to download and merge pages from your terminal if the network proxy is blocked.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">3</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Click Generate Insights</div>
+              <div class="doc-step-desc">The AI analyses every step in batches of 25. With 210 steps and Gemini free tier expect ~2 minutes due to rate limits (20 RPM). Progress is shown in the status bar.</div>
+            </div>
+          </div>
+          <div class="doc-step">
+            <div class="doc-step-num">4</div>
+            <div class="doc-step-body">
+              <div class="doc-step-title">Read the matrix</div>
+              <div class="doc-step-desc">Sort by any run column to find slowest steps. Red cells = &gt;2s. PASS/FAIL badges come directly from Testsigma result data. Click Export Report for Excel.</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end Getting Started panel -->
+
+      <!-- ── How It Works subtab ── -->
+      <div class="docs-subtab-panel" id="docsPanelHowItWorks">
+
+        <div class="doc-section">
+          <div class="doc-h1"><span class="doc-icon">⚙</span>How the Analyser Works</div>
+          <div class="doc-p">The tool fetches Testsigma execution telemetry, normalises it, and sends it to an AI model in batches to generate per-step optimization recommendations.</div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">Data Pipeline</div>
+          <div class="doc-flow">
+            <div class="doc-flow-step">
+              <div class="doc-flow-line"><div class="doc-flow-dot"></div><div class="doc-flow-track"></div></div>
+              <div class="doc-flow-body">
+                <div class="doc-flow-title">Fetch <span class="doc-badge indigo">Step 1</span></div>
+                <div class="doc-flow-desc">API pages are fetched from <span class="doc-chip">app.testsigma.com/api/v2/…/step_results</span> with auto-pagination. Each page is 100 steps. A 210-step run = 3 pages. Pages are merged into one content array.</div>
+              </div>
+            </div>
+            <div class="doc-flow-step">
+              <div class="doc-flow-line"><div class="doc-flow-dot"></div><div class="doc-flow-track"></div></div>
+              <div class="doc-flow-body">
+                <div class="doc-flow-title">Normalise <span class="doc-badge indigo">Step 2</span></div>
+                <div class="doc-flow-desc">Raw step objects are normalised into a flat schema. Loop iterations and step groups share the same <span class="doc-chip">stepId</span> — these get composite keys like <span class="doc-chip">93355:1</span>, <span class="doc-chip">93355:2</span> so no rows are lost.</div>
+              </div>
+            </div>
+            <div class="doc-flow-step">
+              <div class="doc-flow-line"><div class="doc-flow-dot"></div><div class="doc-flow-track"></div></div>
+              <div class="doc-flow-body">
+                <div class="doc-flow-title">Slim Payload <span class="doc-badge indigo">Step 3</span></div>
+                <div class="doc-flow-desc">Only the fields the AI needs are sent: <span class="doc-chip">stepId</span>, <span class="doc-chip">action</span>, <span class="doc-chip">stepType</span>, <span class="doc-chip">run*_sec</span>, <span class="doc-chip">result</span>. This reduces batch size by ~7x vs sending raw objects.</div>
+              </div>
+            </div>
+            <div class="doc-flow-step">
+              <div class="doc-flow-line"><div class="doc-flow-dot"></div><div class="doc-flow-track"></div></div>
+              <div class="doc-flow-body">
+                <div class="doc-flow-title">AI Batches <span class="doc-badge indigo">Step 4</span></div>
+                <div class="doc-flow-desc">Steps are sent to the AI in batches of 25. Each batch gets a structured prompt asking for exactly 25 JSON objects back with <span class="doc-chip">suggestion</span> and <span class="doc-chip">expected</span> fields. Batches run sequentially with a 4s throttle to respect API rate limits.</div>
+              </div>
+            </div>
+            <div class="doc-flow-step">
+              <div class="doc-flow-line"><div class="doc-flow-dot"></div><div class="doc-flow-track"></div></div>
+              <div class="doc-flow-body">
+                <div class="doc-flow-title">Render <span class="doc-badge indigo">Step 5</span></div>
+                <div class="doc-flow-desc">AI responses are merged back with Testsigma metadata (result, step type). The Performance Matrix table renders with sortable duration columns, PASS/FAIL badges, step type indicators, and slow-cell highlights.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">Step Types</div>
+          <div class="doc-p">The AI is aware of step types and gives type-specific suggestions:</div>
+          <div class="doc-where">
+            <div class="doc-where-row">
+              <span class="doc-where-key"><span class="doc-badge green">NLP_TEXT</span></span>
+              <span class="doc-where-val">Standard automation steps. Suggestions focus on locator strategy and wait optimisation.</span>
+            </div>
+            <div class="doc-where-row">
+              <span class="doc-where-key"><span class="doc-badge amber">WHILE_LOOP</span></span>
+              <span class="doc-where-val">Loop iterations. Each iteration gets its own row. Suggestions target loop exit conditions and polling intervals.</span>
+            </div>
+            <div class="doc-where-row">
+              <span class="doc-where-key"><span class="doc-badge indigo">STEP_GROUP</span></span>
+              <span class="doc-where-val">Reusable step groups. Suggestions target slow sub-step extraction and result caching.</span>
+            </div>
+            <div class="doc-where-row">
+              <span class="doc-where-key"><span class="doc-badge purple">API_STEP</span></span>
+              <span class="doc-where-val">Direct API calls. Suggestions target timeout tuning and direct DB substitution.</span>
+            </div>
+          </div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">Rate Limits &amp; Fallback</div>
+          <div class="doc-p">If the AI API returns a 429 (rate limit), the tool reads the exact retry delay from the error message and waits before retrying — up to 2 retries per batch. If all retries fail, the step gets a fallback row (highlighted amber) with a generic suggestion. No steps are ever dropped.</div>
+          <div class="doc-tip">Gemini free tier: 20 requests/min. A 210-step run = 9 batches. Expect ~2 minutes total with the 4s inter-batch throttle.</div>
+        </div>
+
+        <hr class="doc-divider"/>
+
+        <div class="doc-section">
+          <div class="doc-h2">Multi-Run Comparison</div>
+          <div class="doc-p">Up to 3 runs can be loaded simultaneously. Each additional run adds a duration column. Percentage delta vs Run 1 is shown inline. The AI receives all run durations together and can identify variance-based issues across executions.</div>
+        </div>
+
+      </div><!-- end How It Works panel -->
+
+    </aside>
+
+    <section class="content">
+      <div id="kpiBar" class="kpi-bar">
+        <div class="kpi"><div class="kpi-label">Baseline total</div><div class="kpi-val" id="kpiT1">—</div></div>
+        <div class="kpi" id="kpiT2Wrap" style="display:none"><div class="kpi-label">Run 2 total</div><div class="kpi-val" id="kpiT2">—</div></div>
+        <div class="kpi" id="kpiT3Wrap" style="display:none"><div class="kpi-label">Run 3 total</div><div class="kpi-val" id="kpiT3">—</div></div>
+        <div class="kpi accent"><div class="kpi-label">Expected total</div><div class="kpi-val" id="kpiExp">—</div></div>
+        <div class="kpi green"><div class="kpi-label">Projected savings</div><div class="kpi-val" id="kpiSav">—</div></div>
+        <div class="kpi" id="kpiSlowWrap"><div class="kpi-label">Slowest step</div><div class="kpi-val" id="kpiSlow" style="font-size:13px;color:var(--red)">—</div></div>
+      </div>
+
+      <div class="content-body">
+        <div class="tab-bar">
+          <div class="tab active" data-tab="matrix">Performance Matrix</div>
+          <div class="tab" data-tab="logs">Process Logs <span id="logBadge" style="display:none;font-size:9px;background:#FEF2F2;color:var(--red);padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:800"></span></div>
+        </div>
+
+        <div class="tab-panel active" id="tabMatrix">
+          <div class="table-wrap">
+            <div class="tbl-header">
+              <span class="tbl-title">Strategic Performance Matrix</span>
+              <span class="tag" id="runCountTag">Analysis Log</span>
+            </div>
+            <table>
+              <thead id="tableHead">
+                <tr><th>Step</th><th>Action</th><th>Run 1 (s)</th><th>Optimization Recommendation</th><th>Expected (s)</th></tr>
+              </thead>
+              <tbody id="resultsTableBody">
+                <tr><td colspan="7" style="text-align:center;padding:60px;color:var(--muted)">Awaiting step payload ingestion...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="tabLogs">
+          <div class="log-panel">
+            <div class="log-toolbar">
+              <div class="log-toolbar-left">
+                <select class="log-filter" id="logFilter" onchange="filterLogs()">
+                  <option value="ALL">All levels</option>
+                  <option value="INFO">INFO</option>
+                  <option value="OK">OK</option>
+                  <option value="WARN">WARN</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="DEBUG">DEBUG</option>
+                </select>
+                <span id="logCount" style="font-size:10px;color:var(--muted)">0 entries</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-log" onclick="clearLogs()">Clear</button>
+                <button class="btn btn-log" onclick="downloadLogs()">↓ Download .txt</button>
+              </div>
+            </div>
+            <div class="log-entries" id="logEntries">
+              <div class="log-empty">No log entries yet. Run an analysis to see diagnostics.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// -- CONSTANTS --
+const BATCH            = 25;
+const THROTTLE_MS      = 4000; /* 20 RPM free tier needs ~3s between requests */
+const MAX_RUNS         = 3;
+const RUN_NAMES        = ['Baseline','Comparison','Tertiary'];
+/* Files larger than this skip the textarea and are stored as parsed objects */
+const LARGE_FILE_BYTES = 500 * 1024; // 500 KB
+
+// -- STATE --
+const $ = id => document.getElementById(id);
+let outputDataset = null;
+let runCount      = 0;
+let logEntries    = [];   // {ts, level, msg}
+let errorCount    = 0;
+/* Stores pre-parsed data for large files, keyed by run index */
+const parsedRunData = new Map();
+/* Abort controller -- lets the user cancel a running analysis */
+let analysisAbortController = null;
+
+// -- LOGGING ENGINE --
+function log(level, msg) {
+  const ts  = new Date().toISOString().replace('T',' ').substring(0,23);
+  const entry = {ts, level, msg: String(msg)};
+  logEntries.push(entry);
+  if (level === 'ERROR' || level === 'WARN') {
+    errorCount++;
+    const badge = $('logBadge');
+    badge.style.display = 'inline';
+    badge.textContent   = errorCount + (errorCount === 1 ? ' issue' : ' issues');
+  }
+  appendLogEntry(entry);
+  updateLogCount();
+}
+
+function appendLogEntry(entry) {
+  const container = $('logEntries');
+  const empty = container.querySelector('.log-empty');
+  if (empty) empty.remove();
+
+  const filter = $('logFilter').value;
+  if (filter !== 'ALL' && filter !== entry.level) return;
+
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.dataset.level = entry.level;
+  div.innerHTML = `<span class="log-ts">${entry.ts}</span><span class="log-level ${entry.level}">${entry.level}</span><span class="log-msg">${escHtml(entry.msg)}</span>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function filterLogs() {
+  const container = $('logEntries');
+  container.innerHTML = '';
+  if (!logEntries.length) {
+    container.innerHTML = '<div class="log-empty">No log entries yet.</div>';
+    return;
+  }
+  const filter = $('logFilter').value;
+  const visible = logEntries.filter(e => filter === 'ALL' || e.level === filter);
+  if (!visible.length) {
+    container.innerHTML = `<div class="log-empty">No ${filter} entries.</div>`;
+    return;
+  }
+  visible.forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.dataset.level = e.level;
+    div.innerHTML = `<span class="log-ts">${e.ts}</span><span class="log-level ${e.level}">${e.level}</span><span class="log-msg">${escHtml(e.msg)}</span>`;
+    container.appendChild(div);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function updateLogCount() {
+  $('logCount').textContent = logEntries.length + ' entr' + (logEntries.length === 1 ? 'y' : 'ies');
+}
+
+function clearLogs() {
+  logEntries   = [];
+  errorCount   = 0;
+  $('logEntries').innerHTML = '<div class="log-empty">Logs cleared.</div>';
+  $('logBadge').style.display = 'none';
+  updateLogCount();
+}
+
+function downloadLogs() {
+  const lines = logEntries.map(e => `[${e.ts}] [${e.level.padEnd(5)}] ${e.msg}`).join('\n');
+  const blob  = new Blob([lines], {type:'text/plain'});
+  const a     = document.createElement('a');
+  a.href      = URL.createObjectURL(blob);
+  a.download  = `testsigma_process_log_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// -- TABS --
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    $('tab' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1)).classList.add('active');
+  });
+});
+
+// -- UI HELPERS --
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function setStatus(msg, type='neutral') {
+  const el = $('statusMsg');
+  el.textContent = msg;
+  el.className   = 'status ' + ({blue:'blue',green:'green',red:'red',amber:'amber'}[type]||'');
+}
+
+function setProgress(done, total) {
+  $('progressBar').style.width = (total > 0 ? Math.round((done/total)*100) : 0) + '%';
+}
+
+// -- TESTSIGMA SHAPE DETECTION & NORMALISATION --
+function isTestsigmaShape(item) {
+  return item && (('stepId' in item) || ('testCaseResultId' in item)) && ('duration' in item);
+}
+
+function normaliseSteps(arr) {
+  if (!arr.length) return arr;
+  if (!isTestsigmaShape(arr[0])) {
+    log('DEBUG', `Generic JSON shape detected -- passing through ${arr.length} items`);
+    return arr;
+  }
+  log('DEBUG', `Testsigma API shape detected -- normalising ${arr.length} items`);
+
+  /* Track per-stepId occurrence index so loop iterations get a unique suffix */
+  const stepOccurrence = new Map();
+
+  const out = arr
+    .map(s => {
+      const rawStepId = s.stepId ?? null;
+      if (rawStepId === null) return null;
+
+      /* Build a composite key that is unique even when the same stepId
+         appears multiple times (loop iterations, step-group expansions).
+         Format: "<stepId>:<occurrenceIndex>"
+         The occurrenceIndex is 0 for the first appearance of a stepId and
+         increments for every subsequent duplicate -- preserving all rows. */
+      const sidStr = String(rawStepId);
+      const occ    = stepOccurrence.get(sidStr) ?? 0;
+      stepOccurrence.set(sidStr, occ + 1);
+      const compositeId = occ === 0 ? sidStr : `${sidStr}:${occ}`;
+
+      return {
+        stepId        : compositeId,           // unique across all 100 rows
+        _baseStepId   : rawStepId,             // original stepId for display
+        _occurrence   : occ,                   // 0-based iteration index
+        _execId       : s.id ?? null,          // unique execution result id
+        _parentId     : s.parentResultId ?? null,
+        action        : s.action || s.description || 'Automation Step',
+        duration      : typeof s.duration === 'number' ? s.duration : null,
+        type          : s.type || 'NLP_TEXT',
+        result        : s.result || null,
+        startTime     : s.startTime || null,
+        endTime       : s.endTime   || null
+      };
+    })
+    .filter(s => {
+      if (s === null) { log('WARN', `Dropped item -- no stepId found`); return false; }
+      return true;
+    });
+
+  const dupeCount = arr.length - (stepOccurrence.size);
+  if (dupeCount > 0) {
+    log('INFO', `Normalised ${out.length} steps -- ${dupeCount} repeated stepIds (loops/step-groups) assigned composite keys`);
+  } else {
+    log('INFO', `Normalised ${out.length} steps (${arr.length - out.length} dropped -- missing stepId)`);
+  }
+  return out;
+}
+
+function parseMalformedOrWrappedJson(raw, label) {
+  let s = raw.trim();
+  if (s.startsWith('"content"') || s.startsWith('content')) s = '{' + s;
+  if (!s.startsWith('{') && !s.startsWith('[')) {
+    const i = s.search(/[{[]/);
+    if (i !== -1) { log('WARN', `${label}: JSON didn't start with { or [ -- trimmed ${i} leading chars`); s = s.substring(i); }
+  }
+  let p;
+  try { p = JSON.parse(s); }
+  catch(e) { log('ERROR', `${label}: JSON.parse failed -- ${e.message}`); throw e; }
+
+  const arr = Array.isArray(p) ? p
+    : Array.isArray(p?.content) ? p.content
+    : typeof p === 'object' && p !== null ? [p]
+    : [];
+  log('INFO', `${label}: parsed ${arr.length} raw items`);
+  return normaliseSteps(arr);
+}
+
+function buildMap(raw, label) {
+  const arr = parseMalformedOrWrappedJson(raw, label);
+  const map = new Map();
+  arr.forEach(x => {
+    const sid = x?.stepId != null ? String(x.stepId) : null;
+    if (sid) map.set(sid, x);
+  });
+  log('INFO', `${label}: built map with ${map.size} entries (composite keys preserve loop/step-group iterations)`);
+  return map;
+}
+
+// -- RUN BLOCK UI --
+function addRun() {
+  if (runCount >= MAX_RUNS) return;
+  runCount++;
+  const idx = runCount;
+  const block = document.createElement('div');
+  block.className = 'run-block';
+  block.id = 'runBlock' + idx;
+  block.innerHTML = `
+    <div class="run-header">
+      <div class="run-label run-${idx}"><span>${idx}</span>Run ${idx} -- ${RUN_NAMES[idx-1]}</div>
+      ${idx > 1 ? `<button class="remove-btn" onclick="removeRun(${idx})" title="Remove">x</button>` : ''}
+    </div>
+    <div class="run-body">
+      <div class="input-mode-toggle">
+        <button class="mode-btn active" id="modeFile${idx}" onclick="switchMode(${idx},'file')">[file] File / Paste</button>
+        <button class="mode-btn" id="modeFetch${idx}" onclick="switchMode(${idx},'fetch')">* Fetch Live</button>
+        <button class="mode-btn" id="modeCurl${idx}" onclick="switchMode(${idx},'curl')">[cfg] curl</button>
+      </div>
+      <div class="mode-panel active" id="panelFile${idx}">
+        <div class="drop-zone" id="drop${idx}" onclick="$('file${idx}').click()">
+          <i>^</i><span id="drop${idx}-label">Drop JSON or click to browse</span>
+          <input type="file" id="file${idx}" accept=".json" style="display:none"/>
+        </div>
+        <textarea id="json${idx}" rows="4" placeholder="...or paste Run ${idx} JSON here"></textarea>
+      </div>
+      <div class="mode-panel" id="panelFetch${idx}">
+        <div class="ts-form">
+          <div class="ts-field">
+            <span class="ts-label">Bearer Token</span>
+            <div class="ts-token-wrap">
+              <input class="ts-input" id="tsToken${idx}" type="password" placeholder="eyJhbGci..."/>
+              <button class="ts-toggle-vis" onclick="toggleTokenVis(${idx})">SHOW</button>
+            </div>
+          </div>
+          <div class="ts-field">
+            <span class="ts-label">Test Run ID</span>
+            <input class="ts-input" id="tsRunId${idx}" type="text" placeholder="e.g. 28760"/>
+          </div>
+          <div class="ts-field">
+            <span class="ts-label">Test Case Result ID</span>
+            <input class="ts-input" id="tsCaseId${idx}" type="text" placeholder="e.g. 287130"/>
+          </div>
+          <button class="ts-fetch-btn" id="tsFetchBtn${idx}" onclick="fetchFromTestsigma(${idx})">* Fetch All Pages</button>
+          <div class="ts-status" id="tsStatus${idx}"></div>
+        </div>
+      </div>
+      <div class="mode-panel" id="panelCurl${idx}"></div>
+    </div>`;
+  $('runsContainer').appendChild(block);
+  setupFileDrop(idx);
+  updateAddBtn();
+  updateTableHeader();
+}
+
+function removeRun(idx) {
+  const b = $('runBlock' + idx);
+  if (b) b.remove();
+  parsedRunData.delete(idx);
+  runCount--;
+  renumberBlocks();
+  updateAddBtn();
+  updateTableHeader();
+}
+
+function renumberBlocks() {
+  const blocks = $('runsContainer').querySelectorAll('.run-block');
+  runCount = 0;
+  blocks.forEach((b, i) => {
+    runCount++;
+    const n = i + 1;
+    b.id = 'runBlock' + n;
+    const lbl = b.querySelector('.run-label');
+    lbl.className   = `run-label run-${n}`;
+    lbl.innerHTML   = `<span>${n}</span>Run ${n} -- ${RUN_NAMES[n-1]}`;
+    const ta = b.querySelector('textarea');
+    if (ta) ta.placeholder = `...or paste Run ${n} JSON here`;
+    const rb = b.querySelector('.remove-btn');
+    if (rb) rb.setAttribute('onclick', `removeRun(${n})`);
+  });
+}
+
+function setupFileDrop(idx) {
+  const zone  = $('drop'  + idx);
+  const input = $('file'  + idx);
+  const ta    = $('json'  + idx);
+  const label = $('drop'  + idx + '-label');
+  input.addEventListener('change', () => { const f = input.files[0]; if (f) readFile(f, zone, label, ta, idx); input.value = ''; });
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.endsWith('.json')) readFile(f, zone, label, ta, idx);
+    else setStatus('Only .json files accepted.', 'red');
+  });
+}
+
+// -- INPUT MODE TOGGLE --
+function switchMode(idx, mode) {
+  ['file','fetch','curl'].forEach(m => {
+    const panel = $('panel' + m.charAt(0).toUpperCase() + m.slice(1) + idx);
+    const btn   = $('mode'  + m.charAt(0).toUpperCase() + m.slice(1) + idx);
+    if (panel) panel.classList.toggle('active', m === mode);
+    if (btn)   btn.classList.toggle('active', m === mode);
+  });
+  /* Build curl panel on first visit, pre-fill token */
+  if (mode === 'curl') {
+    buildCurlPanel(idx);
+    const curlTok = $('curlToken' + idx);
+    if (curlTok && !curlTok.value) {
+      const global = $('tsTokenGlobal')?.value.trim();
+      if (global) curlTok.value = global;
+    }
+  }
+}
+
+function buildCurlPanel(idx) {
+  const panel = $('panelCurl' + idx);
+  if (!panel || panel.dataset.built) return;
+  panel.dataset.built = '1';
+  const h = [
+    '<div class="ts-form">',
+      '<div class="ts-field">',
+        '<span class="ts-label">Bearer Token</span>',
+        '<div class="ts-token-wrap">',
+          '<input class="ts-input" id="curlToken' + idx + '" type="password" placeholder="eyJhbGci..."/>',
+          '<button class="ts-toggle-vis" onclick="toggleCurlTokenVis(' + idx + ')">SHOW</button>',
+        '</div>',
+      '</div>',
+      '<div class="ts-field">',
+        '<span class="ts-label">Test Run ID</span>',
+        '<input class="ts-input" id="curlRunId' + idx + '" type="text" placeholder="e.g. 28760"/>',
+      '</div>',
+      '<div class="ts-field">',
+        '<span class="ts-label">Test Case Result ID</span>',
+        '<input class="ts-input" id="curlCaseId' + idx + '" type="text" placeholder="e.g. 287130"/>',
+      '</div>',
+      '<div class="ts-field">',
+        '<span class="ts-label">Total Pages (check first response)</span>',
+        '<input class="ts-input" id="curlPages' + idx + '" type="number" min="1" max="20" value="3"/>',
+      '</div>',
+      '<button class="ts-fetch-btn" onclick="generateCurl(' + idx + ')">Generate Script</button>',
+      '<div id="curlBox' + idx + '" class="curl-box"></div>',
+      '<button id="curlCopyBtn' + idx + '" class="curl-copy-btn" onclick="copyCurl(' + idx + ')">Copy to Clipboard</button>',
+      '<div style="font-size:9px;color:var(--muted);margin-top:4px;line-height:1.5">',
+        'Run in Mac terminal -&gt; saves <b>run' + idx + '_merged.json</b> -&gt; drop into File/Paste.',
+      '</div>',
+    '</div>'
+  ];
+  panel.innerHTML = h.join('');
+}
+
+function toggleCurlTokenVis(idx) {
+  const inp = $('curlToken' + idx);
+  const btn = inp.nextElementSibling;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'HIDE'; }
+  else                         { inp.type = 'password'; btn.textContent = 'SHOW'; }
+}
+
+function generateCurl(idx) {
+  const token   = ($('curlToken'  + idx)?.value.trim()) || $('tsTokenGlobal')?.value.trim() || 'YOUR_BEARER_TOKEN';
+  const runId   = $('curlRunId'   + idx)?.value.trim()  || 'RUN_ID';
+  const caseId  = $('curlCaseId'  + idx)?.value.trim()  || 'CASE_RESULT_ID';
+  const pages   = parseInt($('curlPages' + idx)?.value)  || 3;
+  const outFile = `run${idx}_merged.json`;
+
+  const base = `https://app.testsigma.com/api/v2/test_runs/${runId}/test_case_results/${caseId}/step_results`;
+
+  /* Build a clean self-contained shell script */
+  const curlCmds = [];
+  for (let p = 0; p < pages; p++) {
+    curlCmds.push(
+      `echo "Fetching page ${p+1}/${pages}..."`,
+      `curl -s -H "Authorization: Bearer $TOKEN" "${base}?page=${p}&size=100" -o "$TMPDIR/page${p}.json"`
+    );
+  }
+
+  /* Build python merge block without heredoc -- use -c flag instead */
+  const pyScript = [
+    'import json,glob,os',
+    'files=sorted(glob.glob(os.path.join(os.environ["TMPDIR"],"page*.json")))',
+    'merged=[]',
+    '[merged.extend(json.load(open(f)).get("content",[])) for f in files]',
+    'json.dump({"content":merged,"totalElements":len(merged)},open("' + outFile + '","w"),indent=2)',
+    'print(f"Done -- {len(merged)} steps saved to ' + outFile + '")',
+  ].join('; ');
+
+  const lines = [
+    '#!/bin/bash',
+    '# Testsigma step results fetcher -- Run ' + idx,
+    '# Fetches ' + pages + ' page(s) and merges into a single JSON file',
+    '# Usage: chmod +x this_script.sh && ./this_script.sh',
+    '',
+    'TOKEN="' + token + '"',
+    'OUT="' + outFile + '"',
+    'TMPDIR=$(mktemp -d)',
+    '',
+    ...curlCmds,
+    '',
+    'echo "Merging pages..."',
+    'TMPDIR="$TMPDIR" python3 -c "' + pyScript.replace(/"/g, '\\"') + '"',
+    '',
+    'rm -rf "$TMPDIR"',
+    'echo "File ready: $(pwd)/' + outFile + '"',
+  ];
+
+  const script = lines.join('\n');
+  const box  = $('curlBox'     + idx);
+  const copy = $('curlCopyBtn' + idx);
+  box.textContent = script;
+  box.classList.add('visible');
+  copy.classList.add('visible');
+  copy.dataset.script = script;
+}
+
+function copyCurl(idx) {
+  const script = $('curlCopyBtn' + idx)?.dataset.script;
+  if (!script) return;
+  navigator.clipboard.writeText(script).then(() => {
+    const btn = $('curlCopyBtn' + idx);
+    const orig = btn.textContent;
+    btn.textContent = 'OK Copied!';
+    setTimeout(() => btn.textContent = orig, 1800);
+  }).catch(() => {
+    /* Fallback for older browsers */
+    const ta = document.createElement('textarea');
+    ta.value = script;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  });
+}
+
+function toggleTokenVis(idx) {
+  const inp = $('tsToken' + idx);
+  const btn = inp.nextElementSibling;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'HIDE'; }
+  else                         { inp.type = 'password'; btn.textContent = 'SHOW'; }
+}
+
+// -- LIVE TESTSIGMA FETCH -- auto-paginates all pages --
+async function fetchFromTestsigma(idx) {
+  /* Use per-run token if filled, otherwise fall back to the shared global token */
+  const token  = ($('tsToken' + idx)?.value.trim()) || $('tsTokenGlobal')?.value.trim();
+  const runId  = $('tsRunId'  + idx)?.value.trim();
+  const caseId = $('tsCaseId' + idx)?.value.trim();
+  const statusEl = $('tsStatus' + idx);
+  const fetchBtn = $('tsFetchBtn' + idx);
+
+  function tsStatus(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className   = 'ts-status ' + type;
+  }
+
+  if (!token)  { tsStatus('Bearer token is required.', 'red');  return; }
+  if (!runId)  { tsStatus('Test Run ID is required.', 'red');   return; }
+  if (!caseId) { tsStatus('Test Case Result ID is required.', 'red'); return; }
+
+  fetchBtn.disabled = true;
+  fetchBtn.textContent = '... Fetching...';
+  log('INFO', `Run ${idx}: starting fetch via corsproxy.io -- run=${runId}, case=${caseId}`);
+
+  const base = `https://app.testsigma.com/api/v2/test_runs/${runId}/test_case_results/${caseId}/step_results`;
+
+  /* -- Single-page fetch via CORS proxy --------------------------------
+     Direct browser->Testsigma fetch is blocked by CORS (no Access-Control
+     headers on the Testsigma API). We route through corsproxy.io which
+     forwards the request server-side -- including the Authorization header --
+     and adds the required CORS response headers so the browser accepts it.
+  ------------------------------------------------------------------------ */
+  /* Multiple CORS proxies tried in order -- corporate firewalls may block some */
+  const CORS_PROXIES = [
+    url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://proxy.cors.sh/${url}`,
+    url => `https://cors-anywhere.herokuapp.com/${url}`,
+  ];
+
+  async function fetchPageViaProxy(page) {
+    const targetUrl = `${base}?page=${page}&size=100`;
+    log('DEBUG', `Run ${idx}: fetching page ${page} -- ${targetUrl}`);
+
+    let lastErr = null;
+    for (let pi = 0; pi < CORS_PROXIES.length; pi++) {
+      const proxyUrl = CORS_PROXIES[pi](targetUrl);
+      const proxyName = ['corsproxy.io','allorigins.win','cors.sh','cors-anywhere'][pi];
+      log('DEBUG', `Run ${idx}: trying proxy ${pi+1}/${CORS_PROXIES.length} (${proxyName})`);
+      tsStatus(`Page ${page+1}: trying proxy ${proxyName}...`, 'blue');
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000); /* 8s per proxy attempt */
+
+        const res = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`HTTP ${res.status} from ${proxyName}: ${errText.slice(0,120)}`);
+        }
+
+        const parsed = await res.json();
+        log('OK', `Run ${idx}: proxy ${proxyName} succeeded for page ${page}`);
+        return parsed;
+
+      } catch(err) {
+        log('WARN', `Run ${idx}: proxy ${proxyName} failed -- ${err.message}`);
+        lastErr = err;
+        /* Short pause before trying next proxy */
+        await new Promise(r => setTimeout(r, 400));
+      }
+    }
+
+    throw new Error(`All ${CORS_PROXIES.length} proxies failed for page ${page}. Last: ${lastErr?.message}. ` +
+      `Your network may be blocking all public CORS proxies. Use File/Paste mode instead.`);
+  }
+
+  try {
+    let allContent = [];
+    let page       = 0;
+    let totalPages = 1;
+
+    do {
+      tsStatus(`Fetching page ${page + 1} of ${totalPages} via proxy...`, 'blue');
+
+      const data = await fetchPageViaProxy(page);
+
+      const pageContent = Array.isArray(data?.content) ? data.content : [];
+      if (pageContent.length === 0 && page === 0) {
+        throw new Error(`Page 0 returned no content. Response keys: ${Object.keys(data||{}).join(', ')}`);
+      }
+
+      allContent = allContent.concat(pageContent);
+      totalPages  = data?.totalPages ?? 1;
+
+      log('OK', `Run ${idx}: page ${page} -- ${pageContent.length} steps (total: ${allContent.length})`);
+      page++;
+
+      /* Small delay between pages to avoid rate limits */
+      if (page < totalPages) await new Promise(r => setTimeout(r, 800));
+
+    } while (page < totalPages);
+
+    if (allContent.length === 0) {
+      tsStatus('API returned 0 steps. Check Run ID and Case Result ID.', 'red');
+      fetchBtn.disabled = false; fetchBtn.textContent = '* Fetch All Pages'; return;
+    }
+
+    parsedRunData.set(idx, { content: allContent });
+    const ta = $('json' + idx);
+    if (ta) ta.value = `__PREPARSED_RUN_${idx}__`;
+
+    tsStatus(`OK ${allContent.length} steps loaded from ${totalPages} page${totalPages > 1 ? 's' : ''}.`, 'green');
+    log('OK', `Run ${idx}: proxy fetch complete -- ${allContent.length} steps from ${totalPages} page(s)`);
+    setStatus(`Run ${idx} ready -- ${allContent.length} steps fetched.`, 'blue');
+
+  } catch(err) {
+    tsStatus(`Fetch failed: ${err.message}`, 'red');
+    log('ERROR', `Run ${idx}: proxy fetch error -- ${err.message}`);
+  }
+
+  fetchBtn.disabled = false;
+  fetchBtn.textContent = '* Fetch All Pages';
+}
+
+function readFile(f, zone, label, ta, idx) {
+  const sizeKB = Math.round(f.size / 1024);
+  const isLarge = f.size > LARGE_FILE_BYTES;
+
+  const reader = new FileReader();
+
+  reader.onload = ev => {
+    const text = ev.target.result;
+
+    if (isLarge) {
+      /* Large file: parse off-thread via an inline Web Worker.
+         The textarea gets a placeholder so the user knows it's loaded,
+         and the parsed result is stored in parsedRunData. */
+      log('INFO', `Run ${idx}: large file detected (${sizeKB}KB) -- parsing off main thread`);
+      setStatus(`Parsing Run ${idx} (${sizeKB}KB)...`, 'blue');
+      zone.classList.remove('loaded');
+      label.textContent = `... Parsing ${f.name} (${sizeKB}KB)...`;
+
+      const workerSrc = `
+        self.onmessage = function(e) {
+          try {
+            const parsed = JSON.parse(e.data);
+            self.postMessage({ ok: true, parsed });
+          } catch(err) {
+            self.postMessage({ ok: false, error: err.message });
+          }
+        };
+      `;
+      const blob   = new Blob([workerSrc], { type: 'application/javascript' });
+      const url    = URL.createObjectURL(blob);
+      const worker = new Worker(url);
+
+      worker.onmessage = ev2 => {
+        URL.revokeObjectURL(url);
+        worker.terminate();
+        if (ev2.data.ok) {
+          parsedRunData.set(idx, ev2.data.parsed);
+          /* Put a compact stub in the textarea so the existing raw-text path
+             stays as a fallback; the orchestrator will prefer parsedRunData. */
+          ta.value = `__PREPARSED_RUN_${idx}__`;
+          zone.classList.add('loaded');
+          label.textContent = `OK ${f.name} (${sizeKB}KB) -- parsed`;
+          log('INFO', `Run ${idx}: off-thread parse complete for "${f.name}" (${sizeKB}KB)`);
+          setStatus('File loaded -- ready to process.', 'blue');
+        } else {
+          log('ERROR', `Run ${idx}: Worker JSON.parse failed -- ${ev2.data.error}`);
+          /* Graceful degradation: fall back to putting raw text in textarea */
+          ta.value = text;
+          zone.classList.add('loaded');
+          label.textContent = `OK ${f.name} (${sizeKB}KB)`;
+          setStatus('File loaded (fallback mode) -- ready to process.', 'amber');
+        }
+      };
+
+      worker.onerror = err => {
+        URL.revokeObjectURL(url);
+        worker.terminate();
+        log('ERROR', `Run ${idx}: Worker error -- ${err.message}`);
+        ta.value = text;
+        zone.classList.add('loaded');
+        label.textContent = `OK ${f.name} (${sizeKB}KB)`;
+        setStatus('File loaded (fallback mode) -- ready to process.', 'amber');
+      };
+
+      worker.postMessage(text);
+
+    } else {
+      /* Small file: original synchronous path unchanged */
+      ta.value = text;
+      zone.classList.add('loaded');
+      label.textContent = 'OK ' + f.name + ' (' + sizeKB + 'KB)';
+      log('INFO', `Run ${idx}: loaded file "${f.name}" (${sizeKB}KB)`);
+      setStatus('File loaded -- ready to process.', 'blue');
+    }
+  };
+
+  reader.onerror = () => {
+    log('ERROR', `Run ${idx}: FileReader failed for "${f.name}"`);
+    setStatus('Could not read file.', 'red');
+  };
+
+  reader.readAsText(f);
+}
+
+function updateAddBtn() {
+  const btn = $('addRunBtn');
+  btn.disabled    = runCount >= MAX_RUNS;
+  btn.textContent = runCount >= MAX_RUNS ? 'Maximum 3 runs' : '? Add comparison run';
+}
+
+function updateTableHeader() {
+  const head = $('tableHead');
+  let cols = `<th>Step</th><th>Action</th>`;
+  for (let i = 1; i <= runCount; i++) cols += `<th class="sortable-col" data-run="${i}" onclick="sortByRun(${i})" style="cursor:pointer;user-select:none" title="Sort by Run ${i} duration">Run ${i} (s) ^v</th>`;
+  cols += `<th>Result</th><th>Optimization Recommendation</th><th>Expected (s)</th>`;
+  head.innerHTML = `<tr>${cols}</tr>`;
+  $('kpiT2Wrap').style.display = runCount >= 2 ? '' : 'none';
+  $('kpiT3Wrap').style.display = runCount >= 3 ? '' : 'none';
+}
+
+$('addRunBtn').addEventListener('click', addRun);
+addRun();
+
+/* -------------------------------------------
+   FEEDBACK PANEL
+   UPDATE THIS LINE with your GitHub repo path:
+   Format: "GitHubUsername/repo-name"
+------------------------------------------- */
+const FEEDBACK_REPO = 'sandeepsai-ts/testsigma-analyzer';
+
+(function initFeedback() {
+  $('fbRepoLabel').textContent = FEEDBACK_REPO;
+})();
+
+let fbType = 'bug';
+
+/* ── Nav pane switcher -- add more panes here as needed ── */
+function switchPane(pane) {
+  /* Rail buttons */
+  document.querySelectorAll('.nav-rail-btn').forEach(b => b.classList.remove('active'));
+  $('nav' + pane.charAt(0).toUpperCase() + pane.slice(1))?.classList.add('active');
+  /* Side panes */
+  document.querySelectorAll('.side-pane').forEach(p => p.classList.remove('active'));
+  $('pane' + pane.charAt(0).toUpperCase() + pane.slice(1))?.classList.add('active');
+}
+
+/* ── Docs subtab switcher -- add more subtabs here as needed ── */
+function switchDocsTab(tab) {
+  document.querySelectorAll('.docs-subtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.docs-subtab-panel').forEach(p => p.classList.remove('active'));
+  /* Activate matching button */
+  const btn = document.querySelector(`.docs-subtab[data-docs="${tab}"]`);
+  if (btn) btn.classList.add('active');
+  /* Activate matching panel */
+  const panel = $('docsPanel' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (panel) panel.classList.add('active');
+}
+
+/* legacy toggleFeedback -- now just switches to feedback pane */
+function toggleFeedback() { switchPane('feedback'); }
+
+function setFbType(type) {
+  fbType = type;
+  ['bug','feature','improvement'].forEach(t => {
+    const btn = $('fbType' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) btn.classList.toggle('sel', t === type);
+  });
+}
+
+function submitFeedback() {
+  const text = $('fbText').value.trim();
+  if (!text) { $('fbText').focus(); return; }
+
+  const labelMap   = {bug: 'bug', feature: 'enhancement', improvement: 'enhancement'};
+  const titleMap   = {bug: '[Bug] ', feature: '[Feature] ', improvement: '[Improvement] '};
+  const titleHint  = titleMap[fbType] + text.split('\n')[0].slice(0, 60);
+
+  /* Detect current page info to include context */
+  const context = [
+    '**Tool version:** testsigma-analyzer',
+    '**Browser:** ' + navigator.userAgent.split(' ').slice(-2).join(' '),
+    '**Steps loaded:** ' + (outputDataset ? outputDataset.rows.length : 'none'),
+    '',
+    '**Description:**',
+    text
+  ].join('\n');
+
+  const params = new URLSearchParams({
+    title:  titleHint,
+    body:   context,
+    labels: labelMap[fbType]
+  });
+
+  const issueUrl = 'https://github.com/' + FEEDBACK_REPO + '/issues/new?' + params.toString();
+  window.open(issueUrl, '_blank', 'noopener');
+
+  /* Clear textarea */
+  $('fbText').value = '';
+  /* Switch back to analyser pane after submitting */
+  switchPane('analyser');
+}
+
+/* -- Session persistence -- restore keys on load -- */
+(function restoreSession() {
+  const aiKey = sessionStorage.getItem('ts_ai_key');
+  const tsToken = sessionStorage.getItem('ts_bearer');
+  if (aiKey)   $('aiKey').value = aiKey;
+  if (tsToken) $('tsTokenGlobal').value = tsToken;
+  const engine = sessionStorage.getItem('ts_engine');
+  if (engine)  $('aiEngine').value = engine;
+})();
+
+$('aiKey').addEventListener('input', () => sessionStorage.setItem('ts_ai_key', $('aiKey').value));
+$('tsTokenGlobal').addEventListener('input', () => sessionStorage.setItem('ts_bearer', $('tsTokenGlobal').value));
+$('aiEngine').addEventListener('change', () => sessionStorage.setItem('ts_engine', $('aiEngine').value));
+
+// -- MAIN ORCHESTRATOR --
+$('processBtn').addEventListener('click', async () => {
+  const key    = $('aiKey').value.trim();
+  const engine = $('aiEngine').value;
+
+  if (!key)  { setStatus('API key required.', 'red');  log('ERROR','Process aborted -- no API key provided'); return; }
+
+  const raws = [];
+  for (let i = 1; i <= runCount; i++) {
+    /* Include run if it has pre-parsed data (live fetch or large file Worker)
+       OR if the textarea has actual JSON content */
+    const v = $('json' + i)?.value.trim();
+    if (parsedRunData.has(i) || v) raws.push({idx: i, raw: v || ''});
+  }
+  if (!raws.length) { setStatus('At least one JSON payload or live fetch is required.', 'red'); log('ERROR','Process aborted -- no payload provided'); return; }
+
+  /* Reset log badge */
+  errorCount = 0;
+  $('logBadge').style.display = 'none';
+
+  const btn = $('processBtn');
+  btn.innerHTML = '<span class="spinner"></span>Processing...';
+  btn.disabled  = true;
+  $('exportExcelBtn').disabled = true;
+  $('abortBtn').style.display = 'flex';
+  setProgress(0, 1);
+  analysisAbortController = new AbortController();
+
+  log('INFO', `--- Analysis started -- engine: ${engine}, runs: ${raws.length} ---`);
+
+  try {
+    /* STEP 1 -- Parse all runs */
+    const maps = [];
+    for (const r of raws) {
+      log('INFO', `Parsing Run ${r.idx} payload...`);
+      setStatus(`Parsing Run ${r.idx} payload...`, 'blue');
+      try {
+        let map;
+        if (parsedRunData.has(r.idx)) {
+          /* Large file: already parsed by the Worker -- reuse directly */
+          log('INFO', `Run ${r.idx}: using pre-parsed data from Worker`);
+          const parsed = parsedRunData.get(r.idx);
+          const arr = Array.isArray(parsed) ? parsed
+            : Array.isArray(parsed?.content) ? parsed.content
+            : typeof parsed === 'object' && parsed !== null ? [parsed]
+            : [];
+          log('INFO', `Run ${r.idx}: ${arr.length} raw items from pre-parsed data`);
+          const normalised = normaliseSteps(arr);
+          map = new Map();
+          normalised.forEach(x => {
+            const sid = x?.stepId != null ? String(x.stepId) : null;
+            if (sid) map.set(sid, x);
+          });
+          log('INFO', `Run ${r.idx}: built map with ${map.size} unique stepIds`);
+        } else {
+          /* Small file or pasted JSON: original synchronous path */
+          map = buildMap(r.raw, `Run ${r.idx}`);
+        }
+        maps.push({idx: r.idx, map});
+      } catch(e) {
+        log('ERROR', `Run ${r.idx} parse failed -- ${e.message}`);
+        setStatus(`Run ${r.idx} parse failed. Check Logs tab.`, 'red');
+        btn.innerHTML = 'Generate Insights'; btn.disabled = false; return;
+      }
+    }
+
+    const allIds = Array.from(new Set(maps.flatMap(m => [...m.map.keys()])));
+    log('INFO', `Total unique stepIds across all runs: ${allIds.length}`);
+
+    if (!allIds.length) {
+      log('ERROR', 'No valid stepIds found in any payload -- cannot proceed');
+      setStatus('No valid steps found. Check Logs tab.', 'red');
+      btn.innerHTML = 'Generate Insights'; btn.disabled = false; return;
+    }
+
+    /* STEP 2 -- Build flat unified payload (only fields the AI needs) */
+    const fullPayload = allIds.map(id => {
+      /* Slim payload -- strip all raw Testsigma fields, keep only what matters for AI analysis */
+      const entry = {stepId: id, action: 'Automation Step', stepType: 'NLP_TEXT', _result: null, _type: 'NLP_TEXT'};
+      maps.forEach(m => {
+        const s = m.map.get(id);
+        if (s) {
+          if (entry.action === 'Automation Step') entry.action = s.action || s.description || 'Automation Step';
+          if (entry.stepType === 'NLP_TEXT')      entry.stepType = s.type || 'NLP_TEXT';
+          if (entry._type   === 'NLP_TEXT')       entry._type    = s.type || 'NLP_TEXT';
+          if (!entry._result && s.result)         entry._result  = s.result;
+          entry[`run${m.idx}_sec`] = s.duration != null ? Math.round((s.duration/1000)*100)/100 : null;
+        } else {
+          entry[`run${m.idx}_sec`] = null;
+          log('DEBUG', `StepId ${id} missing in Run ${m.idx} -- null duration assigned`);
+        }
+      });
+      /* Return only the fields the AI prompt needs -- drop everything else */
+      const slim = {stepId: entry.stepId, action: entry.action, stepType: entry.stepType};
+      for (let i = 1; i <= maps.length; i++) slim[`run${i}_sec`] = entry[`run${i}_sec`] ?? null;
+      /* Include result so AI can factor in FAILURE steps for prioritisation */
+      const firstStep = maps.find(m => m.map.has(id))?.map.get(id);
+      if (firstStep?.result) slim.result = firstStep.result;
+      return slim;
+    });
+    log('DEBUG', `Slim payload sample (first entry): ${JSON.stringify(fullPayload[0])}`);
+
+    /* STEP 3 -- Slice into BATCH-sized chunks */
+    const batches = [];
+    for (let i = 0; i < fullPayload.length; i += BATCH) batches.push(fullPayload.slice(i, i + BATCH));
+    const totalBatches = batches.length;
+
+    log('INFO', `Payload sliced into ${totalBatches} batch(es) of max ${BATCH} steps`);
+    setStatus(`${allIds.length} steps -> ${totalBatches} batch${totalBatches > 1 ? 'es' : ''}. Starting...`, 'blue');
+
+    /* STEP 4 -- Strict sequential loop */
+    let allRows      = [];
+    let fallbackCount = 0;
+
+    for (let bi = 0; bi < totalBatches; bi++) {
+      const batch = batches[bi];
+      const from  = bi * BATCH + 1;
+      const to    = Math.min((bi + 1) * BATCH, fullPayload.length);
+      const batchLabel = `Batch ${bi+1}/${totalBatches} (Steps ${from}-${to})`;
+
+      setStatus(`Processing ${batchLabel}...`, 'blue');
+      setProgress(bi, totalBatches);
+      /* Check if user aborted */
+      if (analysisAbortController?.signal.aborted) {
+        log('WARN', `Analysis aborted before ${batchLabel}`);
+        break;
+      }
+      log('INFO', `? ${batchLabel} -- dispatching ${batch.length} steps to ${engine}`);
+
+      let batchRows = null;
+      let attempt   = 0;
+      let lastErr   = null;
+      const MAX_RETRIES = 2;
+
+      while (attempt <= MAX_RETRIES && batchRows === null) {
+        if (attempt > 0) {
+          /* Honor the retryAfter the API told us; fall back to exponential */
+          const retryDelay = lastErr?.retryAfterMs || (THROTTLE_MS * Math.pow(2, attempt));
+          log('WARN', `${batchLabel}: retry ${attempt}/${MAX_RETRIES} -- waiting ${(retryDelay/1000).toFixed(1)}s (API requested)...`);
+          setStatus(`${batchLabel} -- rate limited, waiting ${(retryDelay/1000).toFixed(0)}s...`, 'amber');
+          await sleep(retryDelay);
+        }
+        try {
+          const raw = await callAISingle(engine, key, batch, raws.length);
+          if (!Array.isArray(raw) || raw.length === 0) throw new Error(`Empty or non-array response (got ${JSON.stringify(raw).slice(0,80)})`);
+
+          /* Verify step count integrity */
+          if (raw.length !== batch.length) {
+            log('WARN', `${batchLabel}: AI returned ${raw.length} rows for ${batch.length} input steps -- reconciling...`);
+            batchRows = reconcileRows(batch, raw, raws.length);
+          } else {
+            batchRows = raw;
+          }
+          /* Re-inject Testsigma metadata the AI doesn't return */
+          batchRows = batchRows.map((row, i) => {
+            const src = batch[i] || batch.find(b => String(b.stepId) === String(row.stepId));
+            if (src) {
+              if (src._result) row._result = src._result;
+              if (src._type)   row.stepType = src._type;
+            }
+            return row;
+          });
+          log('OK', `${batchLabel}: ${batchRows.length} rows received and validated`);
+        } catch(err) {
+          log('ERROR', `${batchLabel} attempt ${attempt+1} failed -- ${err.message}`);
+          lastErr = err;
+          attempt++;
+          if (err.retryAfterMs) {
+            const waitSec = (err.retryAfterMs / 1000).toFixed(0);
+            setStatus(`Rate limited by Gemini -- waiting ${waitSec}s before retry...`, 'amber');
+          }
+        }
+      }
+
+      /* Non-destructive fallback -- never drop steps */
+      if (batchRows === null) {
+        fallbackCount += batch.length;
+        log('WARN', `${batchLabel}: all ${MAX_RETRIES+1} attempts failed -- applying fallback for ${batch.length} steps`);
+        batchRows = batch.map(s => buildFallbackRow(s, raws.length));
+      }
+
+      allRows = allRows.concat(batchRows);
+      log('DEBUG', `Running total: ${allRows.length} rows accumulated`);
+
+      if (bi < totalBatches - 1) {
+        log('DEBUG', `Throttle: waiting ${THROTTLE_MS/1000}s before next batch (rate limit headroom)`);
+        await sleep(THROTTLE_MS);
+      }
+    }
+
+    setProgress(totalBatches, totalBatches);
+    log('INFO', `--- Orchestration complete -- ${allRows.length}/${allIds.length} rows rendered, ${fallbackCount} fallback ---`);
+
+    /* STEP 5 -- Aggregate & render */
+    const t1   = allRows.reduce((s,r) => s + (Number(r.run1) || 0), 0);
+    const tExp = allRows.reduce((s,r) => s + (Number(r.expected) || 0), 0);
+    const summary = {t1, tExp, savings: t1 > 0 ? ((t1-tExp)/t1)*100 : 0, runCount: raws.length};
+    if (raws.length >= 2) summary.t2 = allRows.reduce((s,r) => s + (Number(r.run2) || 0), 0);
+    if (raws.length >= 3) summary.t3 = allRows.reduce((s,r) => s + (Number(r.run3) || 0), 0);
+    /* Slowest step by run1 duration */
+    const slowRow = allRows.reduce((mx, r) => {
+      const d = Number(r.run1 || r.run1_sec) || 0;
+      return d > (mx?.dur || 0) ? {dur: d, action: r.action} : mx;
+    }, null);
+    if (slowRow) summary.slowestStep = slowRow;
+
+    outputDataset = {rows: allRows, summary};
+    renderTable(outputDataset);
+    renderKPIs(summary);
+    $('runCountTag').textContent = `${allRows.length} Steps ? ${raws.length} Run${raws.length > 1 ? 's' : ''}`;
+
+    const warn = fallbackCount > 0
+      ? ` ? ${fallbackCount} step${fallbackCount>1?'s':''} used fallback -- see Logs`
+      : '';
+    setStatus(`OK Complete -- ${allRows.length}/${allIds.length} steps rendered.${warn}`, fallbackCount > 0 ? 'amber' : 'green');
+    $('exportExcelBtn').disabled = false;
+
+    if (fallbackCount > 0) {
+      /* Auto-switch to logs tab to surface issues */
+      document.querySelector('[data-tab="logs"]').click();
+    }
+
+  } catch(e) {
+    log('ERROR', `Fatal orchestration error -- ${e.message}\n${e.stack||''}`);
+    setStatus('Fatal error -- see Logs tab for details.', 'red');
+  }
+
+  btn.innerHTML = 'Generate Insights';
+  btn.disabled  = false;
+  $('abortBtn').style.display = 'none';
+  analysisAbortController = null;
+});
+
+$('abortBtn').addEventListener('click', () => {
+  if (analysisAbortController) {
+    analysisAbortController.abort();
+    log('WARN', 'Analysis aborted by user');
+    setStatus('Analysis cancelled.', 'amber');
+  }
+});
+
+/* -------------------------------------------
+   ROW RECONCILIATION -- ensures no steps dropped
+   when AI returns fewer rows than input steps
+------------------------------------------- */
+function reconcileRows(batch, aiRows, numRuns) {
+  const aiMap = new Map();
+  aiRows.forEach(r => { if (r.stepId != null) aiMap.set(String(r.stepId), r); });
+
+  return batch.map(s => {
+    const sid = String(s.stepId);
+    if (aiMap.has(sid)) return aiMap.get(sid);
+    log('WARN', `StepId ${sid} missing from AI response -- injecting fallback row`);
+    return buildFallbackRow(s, numRuns);
+  });
+}
+
+function buildFallbackRow(s, numRuns) {
+  const row = {
+    stepId    : s.stepId,
+    action    : s.action,
+    suggestion: 'Analysis temporarily unavailable due to API timeout. Manual profile: Optimize locator stability.',
+    expected  : s.run1_sec ?? 0,
+    _fallback : true
+  };
+  for (let i = 1; i <= numRuns; i++) row[`run${i}`] = s[`run${i}_sec`] ?? 0;
+  return row;
+}
+
+// -- SINGLE BATCH AI CALL --
+async function callAISingle(engine, key, payload, numRuns) {
+  const runFields = Array.from({length: numRuns}, (_,i) => `"run${i+1}":1.25`).join(',');
+  const sys = `You are an expert Testsigma automation engineer analysing test execution step telemetry.
+Inputs include ${numRuns} run(s) of step durations (in seconds), step type, and result (SUCCESS/FAILURE).
+
+ANALYSIS RULES:
+1. Suggestions must be direct, technical, and actionable -- no filler.
+2. Reference Testsigma features where relevant: multi-locator strategies, Global Variables, conditional step overrides, API step substitution, step groups, rerun policies.
+3. Prioritise steps that: (a) have result=FAILURE, (b) have high duration (>2s), (c) show high variance across runs.
+4. For WHILE_LOOP / WHILE_LOOP_HEADER steps: suggest loop exit condition tuning or polling interval optimisation.
+5. For STEP_GROUP steps: suggest extracting slow sub-steps or caching group results.
+6. For API_STEP steps: suggest timeout tuning, response caching, or replacing with direct DB checks.
+7. If duration is <0.5s, stable, and result is SUCCESS: output exactly "Execution baseline optimal. No current structural tuning required."
+8. Never output "TAM" or "Technical Account Manager".
+9. STRICT: Each "suggestion" must be 120 characters or fewer. No exceptions.
+10. "expected" = your recommended target duration in seconds (must be ? the lowest observed run duration).
+11. You MUST return exactly ${payload.length} objects -- one per input step, same order.
+
+CRITICAL: Return ONLY a valid JSON array -- no markdown, no backticks, no preamble.
+Schema: [{"stepId":"...","action":"...",${runFields},"suggestion":"...","expected":0.50}]`;
+
+  const user = `Analyze exactly these ${payload.length} test suite steps and return exactly ${payload.length} JSON objects:\n${JSON.stringify(payload)}`;
+
+  log('DEBUG', `callAISingle: engine=${engine}, steps=${payload.length}, first stepId=${payload[0]?.stepId}`);
+
+  let res, data;
+
+  if (engine === 'gemini') {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        contents: [{parts: [{text: `${sys}\n\n${user}`}]}],
+        generationConfig: {
+          maxOutputTokens: 65536,
+          temperature: 0.1,
+          thinkingConfig: {thinkingBudget: 0}
+        }
+      })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      log('ERROR', `Gemini HTTP ${res.status} full error: ${t.slice(0,500)}`);
+      /* Parse the retryAfter seconds Gemini embeds in the 429 message */
+      let retryAfterMs = 0;
+      if (res.status === 429) {
+        const secMatch = t.match(/retry in ([\d.]+)s/i);
+        const msMatch  = t.match(/retry in ([\d.]+)ms/i);
+        if (secMatch) retryAfterMs = Math.ceil(parseFloat(secMatch[1]) * 1000) + 1000;
+        else if (msMatch) retryAfterMs = Math.ceil(parseFloat(msMatch[1])) + 1000;
+        else retryAfterMs = 20000; /* safe default */
+      }
+      const err = new Error(`Gemini HTTP ${res.status}: ${t.slice(0,200)}`);
+      err.retryAfterMs = retryAfterMs;
+      throw err;
+    }
+    data = await res.json();
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    if (finishReason && finishReason !== 'STOP') {
+      log('WARN', `Gemini finishReason=${finishReason} -- possible truncation or safety block`);
+    }
+    /* Collect all text parts (thinking disabled so parts[0] is always the JSON) */
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const raw = parts.map(p => p.text || '').join('');
+    log('DEBUG', `Gemini raw response length: ${raw.length} chars, finishReason: ${finishReason}`);
+    if (!raw) {
+      log('ERROR', `Gemini empty response. Candidate: ${JSON.stringify(data?.candidates?.[0]).slice(0,400)}`);
+      throw new Error('Gemini returned empty response -- check API key and quota');
+    }
+    return parseJSON(raw, `Gemini batch`);
+  }
+
+  if (engine === 'claude') {
+    res = await fetch(`https://api.anthropic.com/v1/messages`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({model:'claude-3-5-sonnet-20241022', max_tokens:32000, system:sys, messages:[{role:'user',content:user}]})
+    });
+    if (!res.ok) { const t = await res.text(); throw new Error(`Claude HTTP ${res.status}: ${t.slice(0,200)}`); }
+    data = await res.json();
+    const raw = data?.content?.[0]?.text || '';
+    log('DEBUG', `Claude raw response length: ${raw.length} chars`);
+    return parseJSON(raw, `Claude batch`);
+  }
+
+  if (engine === 'copilot') {
+    res = await fetch(`https://api.openai.com/v1/chat/completions`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+      body: JSON.stringify({model:'gpt-4o', max_tokens:32000, messages:[{role:'system',content:sys},{role:'user',content:user}]})
+    });
+    if (!res.ok) { const t = await res.text(); throw new Error(`OpenAI HTTP ${res.status}: ${t.slice(0,200)}`); }
+    data = await res.json();
+    const raw = data?.choices?.[0]?.message?.content || '';
+    log('DEBUG', `GPT-4o raw response length: ${raw.length} chars`);
+    return parseJSON(raw, `OpenAI batch`);
+  }
+  return [];
+}
+
+// -- JSON EXTRACTION WITH LOGGING --
+function parseJSON(txt, label) {
+  /* Strip markdown fences */
+  let c = txt.replace(/```json/gi,'').replace(/```/g,'').trim();
+
+  log('DEBUG', `${label}: raw text starts with: ${c.slice(0,120)}`);
+
+  /* Try direct JSON.parse first (handles both arrays and objects) */
+  try {
+    const direct = JSON.parse(c);
+    /* Unwrap if the model wrapped the array in an object */
+    const arr = Array.isArray(direct) ? direct
+      : Array.isArray(direct?.results)   ? direct.results
+      : Array.isArray(direct?.data)      ? direct.data
+      : Array.isArray(direct?.steps)     ? direct.steps
+      : Array.isArray(direct?.analysis)  ? direct.analysis
+      : null;
+    if (arr) {
+      log('DEBUG', `${label}: direct JSON.parse succeeded -- ${arr.length} items`);
+      return arr;
+    }
+  } catch(_) { /* fall through to bracket extraction */ }
+
+  /* Fallback: extract the outermost [...] array */
+  const s = c.indexOf('['), e = c.lastIndexOf(']');
+  if (s === -1 || e === -1) {
+    log('ERROR', `${label}: no JSON array found. Full response (first 500): ${c.slice(0,500)}`);
+    throw new Error(`No JSON array in AI response -- check Logs tab for full text`);
+  }
+  c = c.substring(s, e + 1);
+  try {
+    const parsed = JSON.parse(c);
+    log('DEBUG', `${label}: bracket-extracted JSON.parse succeeded -- ${parsed.length} items`);
+    return parsed;
+  } catch(err) {
+    log('ERROR', `${label}: JSON.parse failed -- ${err.message}. Snippet: ${c.slice(0,400)}`);
+    throw err;
+  }
+}
+
+// -- TABLE RENDER --
+/* Sort state */
+let sortRunIdx = 0, sortAsc = false;
+
+function sortByRun(runIdx) {
+  if (sortRunIdx === runIdx) { sortAsc = !sortAsc; }
+  else { sortRunIdx = runIdx; sortAsc = false; }
+  if (!outputDataset) return;
+  outputDataset.rows.sort((a, b) => {
+    const av = Number(a[`run${runIdx}`] || a[`run${runIdx}_sec`]) || 0;
+    const bv = Number(b[`run${runIdx}`] || b[`run${runIdx}_sec`]) || 0;
+    return sortAsc ? av - bv : bv - av;
+  });
+  renderTable(outputDataset);
+  /* Update header arrow indicator */
+  document.querySelectorAll('.sortable-col').forEach(th => {
+    const r = parseInt(th.dataset.run);
+    th.textContent = `Run ${r} (s) ${r === sortRunIdx ? (sortAsc ? '^' : 'v') : '^v'}`;
+    th.onclick = () => sortByRun(r);
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.title = `Sort by Run ${r} duration`;
+  });
+}
+
+/* Step type badge colours */
+const TYPE_BADGE = {
+  WHILE_LOOP        : {bg:'#F0FDF4',color:'#166534',label:'LOOP'},
+  WHILE_LOOP_HEADER : {bg:'#F0FDF4',color:'#166534',label:'LOOP HDR'},
+  STEP_GROUP        : {bg:'#EFF6FF',color:'#1E40AF',label:'GROUP'},
+  API_STEP          : {bg:'#FDF4FF',color:'#7E22CE',label:'API'},
+  NLP_TEXT          : null,  /* no badge -- most common, keep it clean */
+};
+
+/* Result badge */
+function resultBadge(result) {
+  if (!result) return '';
+  const upper = result.toUpperCase();
+  if (upper === 'SUCCESS') return `<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:#ECFDF5;color:#059669">PASS</span>`;
+  if (upper === 'FAILURE' || upper === 'FAILED') return `<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:#FEF2F2;color:#DC2626">FAIL</span>`;
+  return `<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:#F8FAFC;color:#64748B">${escHtml(upper.slice(0,6))}</span>`;
+}
+
+function renderTable(data) {
+  const rc    = data.summary.runCount || 1;
+  const tbody = $('resultsTableBody');
+  tbody.innerHTML = '';
+  data.rows.forEach(r => {
+    const tr = document.createElement('tr');
+    if (r._fallback) tr.className = 'fallback-row';
+    let timeCells = '';
+    for (let i = 1; i <= rc; i++) {
+      const val  = Number(r[`run${i}`] || r[`run${i}_sec`]) || 0;
+      let delta  = '';
+      if (i > 1) {
+        const base = Number(r.run1 || r.run1_sec) || 0;
+        if (base > 0) { const d = ((val-base)/base)*100; delta = `<span class="delta ${d>0?'up':'down'}">${d>0?'+':''}${d.toFixed(1)}%</span>`; }
+      }
+      /* Highlight slow cells (>2s) */
+      const slowStyle = val > 2 ? ' style="background:#FEF2F2"' : '';
+      timeCells += `<td${slowStyle}><span class="time-cell">${val.toFixed(2)}</span>${delta}</td>`;
+    }
+    const isFb   = r._fallback || (r.suggestion && r.suggestion.startsWith('Analysis temporarily'));
+    const baseId = r._baseStepId != null ? r._baseStepId : r.stepId;
+    const iterBadge = (r._occurrence > 0)
+      ? `<span style="font-size:8px;font-weight:700;color:var(--accent);margin-left:3px">x${r._occurrence + 1}</span>`
+      : '';
+    /* Step type badge */
+    const tDef = TYPE_BADGE[r.stepType] || TYPE_BADGE[r._type];
+    const typeBadge = tDef
+      ? `<span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:${tDef.bg};color:${tDef.color};margin-left:3px">${tDef.label}</span>`
+      : '';
+    tr.innerHTML = `
+      <td><span class="step-id">${baseId}</span>${iterBadge}${typeBadge}</td>
+      <td><span class="action-cell" title="${escHtml(r.action)}">${escHtml(r.action)}</span></td>
+      ${timeCells}
+      <td style="white-space:nowrap">${resultBadge(r.result || r._result)}</td>
+      <td><span class="suggestion-cell${isFb?' fallback':''}">${escHtml(r.suggestion||'')}</span></td>
+      <td><span class="expected-cell">${Number(r.expected).toFixed(2)}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// -- KPI RENDER --
+function renderKPIs(s) {
+  $('kpiT1').textContent = s.t1.toFixed(2) + 's';
+  if (s.t2 !== undefined) { $('kpiT2').textContent = s.t2.toFixed(2) + 's'; $('kpiT2Wrap').style.display = ''; }
+  if (s.t3 !== undefined) { $('kpiT3').textContent = s.t3.toFixed(2) + 's'; $('kpiT3Wrap').style.display = ''; }
+  $('kpiExp').textContent = s.tExp.toFixed(2) + 's';
+  $('kpiSav').textContent = s.savings.toFixed(1) + '%';
+  if (s.slowestStep) {
+    $('kpiSlow').textContent = s.slowestStep.dur.toFixed(2) + 's';
+    $('kpiSlowWrap').title = s.slowestStep.action;
+  }
+  $('kpiBar').classList.add('visible');
+}
+
+// -- EXCEL EXPORT --
+$('exportExcelBtn').addEventListener('click', () => { if (outputDataset) exportReport(outputDataset); });
+
+function exportReport(data) {
+  const rc = data.summary.runCount || 1;
+  const wb = XLSX.utils.book_new();
+
+  const execAoa = [
+    ['TESTSIGMA AUTOMATION PERFORMANCE AUDIT REPORT'],
+    ['Execution Infrastructure Strategy & Optimization Summary'],
+    [],
+    ['Baseline Total (s)', data.summary.t1.toFixed(2), 'Expected Target Total (s)', data.summary.tExp.toFixed(2)],
+  ];
+  if (data.summary.t2 !== undefined) execAoa.push(['Run 2 Total (s)', data.summary.t2.toFixed(2)]);
+  if (data.summary.t3 !== undefined) execAoa.push(['Run 3 Total (s)', data.summary.t3.toFixed(2)]);
+  execAoa.push(['Projected Savings (%)', data.summary.savings.toFixed(2) + '%'], [],
+    ['Note: Optimization data points map across selector matching profiles and environment variables to reduce automation timing bottlenecks.']);
+  const ws1 = XLSX.utils.aoa_to_sheet(execAoa);
+  ws1['!cols'] = [{wch:28},{wch:15},{wch:45},{wch:15}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Executive Summary');
+
+  const header = ['Step ID','Step Action'];
+  for (let i = 1; i <= rc; i++) header.push(`Run ${i} (s)`);
+  header.push('Optimization Recommendation','Expected (s)','Fallback?');
+  const detailAoa = [header];
+  data.rows.forEach(r => {
+    const displayId = r._baseStepId != null
+      ? (r._occurrence > 0 ? `${r._baseStepId} (iter ${r._occurrence + 1})` : String(r._baseStepId))
+      : r.stepId;
+    const row = [displayId, r.action];
+    for (let i = 1; i <= rc; i++) row.push(Number(r[`run${i}`] || r[`run${i}_sec`]) || 0);
+    row.push(r.suggestion, r.expected, r._fallback ? 'YES' : 'NO');
+    detailAoa.push(row);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(detailAoa);
+  ws2['!cols'] = [{wch:12},{wch:40},...Array(rc).fill({wch:16}),{wch:75},{wch:18},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Performance Matrix Logs');
+
+  /* Log sheet */
+  const logAoa = [['Timestamp','Level','Message'], ...logEntries.map(e => [e.ts, e.level, e.msg])];
+  const ws3 = XLSX.utils.aoa_to_sheet(logAoa);
+  ws3['!cols'] = [{wch:24},{wch:8},{wch:120}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Process Logs');
+
+  XLSX.writeFile(wb, 'Testsigma_Optimization_Report.xlsx');
+}
+</script>
+</body>
+</html>
