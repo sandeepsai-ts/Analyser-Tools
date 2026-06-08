@@ -266,7 +266,7 @@ tr.fallback-row td{background:#FFFBEB}
 .amc-sig-badge.network{background:#EFF6FF;color:#2563EB}
 .amc-title{font-size:11px;font-weight:700;color:var(--text);flex:1}
 .amc-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
-.amc-section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.amc-section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:4px}
 .amc-exception{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-family:ui-monospace,monospace;font-size:9.5px;color:#DC2626;line-height:1.6;word-break:break-all;max-height:80px;overflow-y:auto}
 .amc-fix{font-size:10.5px;color:var(--text);line-height:1.6}
 .amc-fix strong{color:var(--accent)}
@@ -1691,65 +1691,72 @@ const AGENT_LOG_ROUTE    = AGENT_WORKER_BASE + '/log-report';
 const AGENT_SIGNATURES = [
   {
     id: 'PORT_CONFLICT',
-    label: 'Port Conflict',
+    label: 'Port Already In Use',
     tier: 'config',
     badgeClass: 'config',
     keywords: ['port already in use', '8080', '8383', 'java.net.bindexception', 'address already in use'],
-    fix: '<strong>Standard Automation Patch.</strong> Run terminal task-kill commands (<code>kill -9 &lt;PID&gt;</code> on Mac/Linux or <code>taskkill /F /PID &lt;PID&gt;</code> on Windows) to clear the occupied socket. Alternatively, modify the port mappings in your <code>agent.properties</code> configuration file to an unused port.',
+    summary: 'The Testsigma agent tried to start but another program is already using the same network port.',
+    fix: '<strong>What to do:</strong> Close the program occupying the port, or tell the agent to use a different one. On a Mac or Linux machine, run <code>kill -9 &lt;PID&gt;</code> in Terminal. On Windows, run <code>taskkill /F /PID &lt;PID&gt;</code> in Command Prompt. Alternatively, open the <code>agent.properties</code> file in the agent folder and change the port number to something unused (e.g. 8090).',
     critical: false
   },
   {
     id: 'SSL_HANDSHAKE',
-    label: 'SSL / Certificate Failure',
+    label: 'Secure Connection Blocked',
     tier: 'infra',
     badgeClass: 'infra',
     keywords: ['sslhandshakeexception', 'sun.security.validator.validatorexception', 'pkix path building failed', 'unable to find valid certification path', 'certificate_unknown', 'handshake_failure'],
-    fix: '<strong>INFRASTRUCTURE & NETWORK ADMIN INTERVENTION REQUIRED.</strong> Your corporate security firewall or proxy is blocking the outbound TLS connection to the Testsigma cloud dashboard. Coordinate with NetOps to inject your corporate custom SSL certificates directly into the local Java/Agent truststore (<code>$JAVA_HOME/lib/security/cacerts</code>) using <code>keytool -importcert</code>.',
+    summary: "Your company's network security is preventing the Testsigma agent from connecting to the Testsigma cloud. This is a network infrastructure issue — not a bug in your tests.",
+    fix: "<strong>Who needs to act: your IT / Network team.</strong> The corporate firewall or security proxy is blocking the encrypted connection to Testsigma. Your IT team needs to add the Testsigma SSL certificate to the agent's trusted certificate store. Ask them to run <code>keytool -importcert</code> targeting the Java truststore at <code>$JAVA_HOME/lib/security/cacerts</code>. This is a one-time setup.",
     critical: true
   },
   {
     id: 'MOBILE_DRIVER',
-    label: 'Mobile Driver / Appium Crash',
+    label: 'Mobile Test Driver Failed to Start',
     tier: 'dev',
     badgeClass: 'dev',
     keywords: ['webdriverexception', 'could not join appium server session', 'mobile driver initialization failed', 'appiumexception', 'no such driver'],
-    fix: '<strong>DEVELOPER & ARCHITECTURE INTERVENTION REQUIRED.</strong> Local mobile automation runtime versioning mismatch detected between your Appium ecosystem dependencies. Re-validate your Node.js global environment paths (<code>appium --version</code>), reinstall the target platform driver (<code>appium driver install uiautomator2</code> / <code>xcuitest</code>), and confirm the device UDID is reachable (<code>adb devices</code> / <code>instruments -s devices</code>).',
+    summary: 'The tool that controls the mobile device (Appium) could not connect. This usually means the version of Appium installed does not match what the tests expect.',
+    fix: "<strong>Who needs to act: your automation developer.</strong> The mobile automation setup needs a version check. Ask your developer to run <code>appium --version</code> in Terminal, reinstall the correct device driver (<code>appium driver install uiautomator2</code> for Android or <code>xcuitest</code> for iOS), and confirm the device is visible by running <code>adb devices</code> (Android) or checking Xcode's device list (iOS).",
     critical: true
   },
   {
     id: 'RATE_LIMIT',
-    label: 'API Rate Limit / Quota Exceeded',
+    label: 'AI Analysis Limit Reached',
     tier: 'rate',
     badgeClass: 'rate',
     keywords: ['429', 'quota exceeded', 'resource_exhausted', 'rate limit', 'too many requests', 'retry in'],
-    fix: '<strong>AI API free-tier quota reached.</strong> The analysis engine has exhausted its per-minute or daily request allowance. Options: (1) Wait for quota reset (midnight UTC for Gemini free tier). (2) Switch to a different AI engine in the topbar dropdown. (3) Upgrade the AI API plan for higher throughput.',
+    summary: 'The AI service used to generate test recommendations has hit its usage cap for this time period. Your tests ran fine — only the AI suggestion part is affected.',
+    fix: '<strong>What to do:</strong> Wait until midnight UTC for the free usage limit to reset, or switch to a different AI engine using the dropdown in the top bar. If this happens frequently, consider upgrading the AI API subscription for higher limits.',
     critical: false
   },
   {
     id: 'CORS_PROXY',
-    label: 'CORS / Network Proxy Block',
+    label: 'Network Access Blocked',
     tier: 'network',
     badgeClass: 'network',
     keywords: ['failed to fetch', 'cors', 'disallowed cors origin', 'err_failed', 'network error', 'all 4 proxies failed', 'blocked by cors policy'],
-    fix: '<strong>Network/proxy configuration issue.</strong> The browser is blocked from reaching the target API due to CORS restrictions or a corporate firewall. Verify that the Cloudflare Worker proxy (<code>ts-proxy.kankanala-sandeepsai.workers.dev</code>) is deployed and accessible. If on a corporate network, confirm the Worker domain is not blocked by the firewall. As a fallback, use the <strong>curl</strong> mode in the Analyser to download data offline.',
+    summary: 'The browser is being prevented from connecting to the Testsigma API. This is typically caused by a corporate network firewall or a missing proxy configuration.',
+    fix: '<strong>What to do:</strong> Check that the Cloudflare proxy service (<code>ts-proxy.kankanala-sandeepsai.workers.dev</code>) is running and reachable. If you are on a corporate network, ask IT to confirm this domain is not blocked. As a temporary workaround, use the <strong>curl</strong> download mode inside the Analyser tab to fetch data from your terminal instead.',
     critical: false
   },
   {
     id: 'AGENT_OFFLINE',
-    label: 'Testsigma Agent Offline / Unreachable',
+    label: 'Testsigma Agent Not Connected',
     tier: 'infra',
     badgeClass: 'infra',
     keywords: ['agent is not connected', 'agent offline', 'unable to connect to agent', 'connection refused', 'agent not registered', 'agent timed out'],
-    fix: '<strong>INFRASTRUCTURE INTERVENTION REQUIRED.</strong> The Testsigma local agent is not registered with the cloud dashboard. Restart the agent service (<code>./start.sh</code> in the agent installation directory), verify the agent token in <code>agent.properties</code> matches the one shown in Testsigma Settings → Agents, and confirm outbound access to <code>app.testsigma.com:443</code> is not firewalled.',
+    summary: 'The Testsigma agent installed on your machine is not communicating with the Testsigma cloud. Tests cannot run until the agent is back online.',
+    fix: '<strong>What to do:</strong> Go to the folder where the Testsigma agent is installed and run <code>./start.sh</code> to restart it. Then open Testsigma, go to Settings → Agents, and confirm the agent shows as "Online". Also check that your machine can reach <code>app.testsigma.com</code> — if not, your IT team may need to open that connection through the firewall.',
     critical: true
   },
   {
     id: 'OOM_CRASH',
-    label: 'Out of Memory / JVM Crash',
+    label: 'Agent Ran Out of Memory',
     tier: 'arch',
     badgeClass: 'arch',
     keywords: ['outofmemoryerror', 'java heap space', 'gc overhead limit exceeded', 'jvm crash', 'permgen space', 'metaspace'],
-    fix: '<strong>ARCHITECTURE REVIEW REQUIRED.</strong> The JVM running the Testsigma agent or driver has exhausted its heap allocation. Increase the heap size by setting <code>JAVA_OPTS="-Xmx2g -Xms512m"</code> in the agent startup script. If the issue persists under normal workloads, audit test parallelism levels and reduce concurrent driver instances.',
+    summary: 'The Testsigma agent crashed because it ran out of the memory allocated to it. This can happen when running many tests simultaneously or on a machine with limited RAM.',
+    fix: '<strong>Who needs to act: your automation developer or infrastructure team.</strong> The agent needs more memory. In the agent startup script, increase the memory limit by adding or updating <code>JAVA_OPTS="-Xmx2g -Xms512m"</code> (this gives it 2 GB). If the crashes continue, reduce the number of tests running at the same time.',
     critical: true
   },
   {
@@ -1758,7 +1765,8 @@ const AGENT_SIGNATURES = [
     tier: 'dev',
     badgeClass: 'dev',
     keywords: ['session not created', 'this version of chromedriver', 'browser version must be between', 'geckodriver', 'edgedriver', 'safaridriver', 'driver version mismatch'],
-    fix: '<strong>DEVELOPER ACTION REQUIRED.</strong> The installed browser and WebDriver versions are incompatible. Run <code>chromedriver --version</code> and compare against your installed Chrome version. Use <code>webdriver-manager update</code> or download the matching driver from the official source. Consider pinning browser versions in your CI environment to prevent auto-update drift.',
+    summary: 'The version of the browser on your machine does not match the version of the browser driver used by Testsigma. This prevents the browser from being opened and controlled during tests.',
+    fix: "<strong>What to do:</strong> Run <code>chromedriver --version</code> in Terminal and compare it with your Chrome browser version (found in Chrome → Help → About). If they don't match, run <code>webdriver-manager update</code> to install the correct driver. Going forward, pin your browser version in your test environment to avoid this happening automatically after browser updates.",
     critical: false
   }
 ];
@@ -1945,13 +1953,18 @@ function agentSetKbBadge(state, text) {
 
 // -- Compact match card (token-optimised) ------------------------------------
 function buildMatchCard(sig, matchedLine, kbMatch) {
-  const escLine = matchedLine ? escHtml(matchedLine.slice(0, 200)) : 'See log';
+  const escLine = matchedLine ? escHtml(matchedLine.slice(0, 200)) : null;
 
   const kbSection = kbMatch
-    ? '<div><div class="amc-section-label">KB Match</div><div class="amc-kb-match"><strong>Issue #' +
+    ? '<div class="amc-kb-match"><strong>Previously seen — Issue #' +
         kbMatch.number + ':</strong> ' + escHtml(kbMatch.title) +
-        ' <a href="' + kbMatch.url + '" target="_blank" rel="noopener">→</a></div></div>'
-    : '<div class="amc-kb-status">Novel pattern — auto-logged to KB.</div>';
+        ' <a href="' + kbMatch.url + '" target="_blank" rel="noopener">View record →</a></div>'
+    : '<div class="amc-kb-status">First time seen — recorded for future reference.</div>';
+
+  const logLine = escLine
+    ? '<div style="margin-top:6px"><div class="amc-section-label">Log line that triggered this</div>' +
+      '<div class="amc-exception">' + escLine + '</div></div>'
+    : '';
 
   return '<div class="agent-match-card">' +
     '<div class="amc-header">' +
@@ -1959,9 +1972,14 @@ function buildMatchCard(sig, matchedLine, kbMatch) {
       '<span class="amc-title">' + escHtml(sig.label) + '</span>' +
     '</div>' +
     '<div class="amc-body">' +
-      '<div><div class="amc-section-label">Exception</div><div class="amc-exception">' + escLine + '</div></div>' +
-      '<div><div class="amc-section-label">Fix</div><div class="amc-fix-compact">' + sig.fix + '</div></div>' +
-      kbSection +
+      '<div><div class="amc-section-label">What happened</div>' +
+        '<div style="font-size:11px;color:var(--text);line-height:1.6">' + escHtml(sig.summary) + '</div>' +
+      '</div>' +
+      '<div><div class="amc-section-label">What to do</div>' +
+        '<div class="amc-fix-compact">' + sig.fix + '</div>' +
+      '</div>' +
+      logLine +
+      '<div style="margin-top:4px">' + kbSection + '</div>' +
     '</div>' +
   '</div>';
 }
@@ -2044,36 +2062,100 @@ function agentDownloadReport() {
   if (!agentLastResults.length) return;
   const hasCritical = agentLastResults.some(e => e.sig.critical);
   const timestamp   = new Date().toLocaleString();
-  const reportHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Testsigma Agent Log Report</title>' +
-    '<style>body{font-family:Arial,sans-serif;color:#0F172A;margin:40px;line-height:1.6}' +
-    'h1{font-size:20px;color:#1E1B4B;border-bottom:3px solid #4F46E5;padding-bottom:8px}' +
-    '.critical{background:#DC2626;color:#fff;padding:12px 16px;border-radius:6px;margin:14px 0;font-weight:700}' +
-    '.clean{background:#059669;color:#fff;padding:12px 16px;border-radius:6px;margin:14px 0;font-weight:700}' +
-    '.card{border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;margin-bottom:12px}' +
-    '.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;margin-bottom:6px}' +
-    '.infra{background:#FEF2F2;color:#DC2626}.dev{background:#FDF4FF;color:#7C3AED}' +
-    '.arch{background:#FFF7ED;color:#C2410C}.config{background:#ECFDF5;color:#059669}' +
-    '.rate{background:#FFFBEB;color:#D97706}.network{background:#EFF6FF;color:#2563EB}' +
-    'pre{background:#F1F5F9;padding:7px 9px;border-radius:4px;font-size:10px;white-space:pre-wrap}' +
-    '.kb{background:#EEF2FF;border:1px solid #C7D2FE;padding:7px 9px;border-radius:4px;font-size:11px}' +
-    '.footer{margin-top:28px;font-size:10px;color:#64748B;border-top:1px solid #E2E8F0;padding-top:10px}' +
-    '</style></head><body>' +
-    '<h1>Testsigma Agent Log Report</h1>' +
-    '<p style="font-size:11px;color:#64748B">Generated: ' + timestamp + '</p>' +
-    (hasCritical ? '<div class="critical">⚠ CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div>' : '') +
+  const severityLabel = {
+    infra:   '🔴 Needs IT / Infrastructure team',
+    dev:     '🟣 Needs developer attention',
+    arch:    '🟠 Needs architecture review',
+    config:  '🟢 Can be self-resolved',
+    rate:    '🟡 Temporary — wait or switch AI engine',
+    network: '🔵 Network / proxy issue'
+  };
+
+  const reportHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"/>' +
+    '<title>Testsigma Agent Log Report</title>' +
+    '<style>' +
+      'body{font-family:Arial,sans-serif;font-size:13px;color:#1E293B;margin:0;padding:0;background:#F8FAFC}' +
+      '.page{max-width:860px;margin:40px auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden}' +
+      '.page-header{background:#1E1B4B;color:#fff;padding:28px 36px}' +
+      '.page-header h1{font-size:22px;margin:0 0 4px}' +
+      '.page-header p{font-size:12px;opacity:.7;margin:0}' +
+      '.summary-bar{display:flex;gap:16px;padding:18px 36px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;flex-wrap:wrap}' +
+      '.summary-chip{font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;white-space:nowrap}' +
+      '.chip-critical{background:#FEF2F2;color:#DC2626}' +
+      '.chip-clean{background:#ECFDF5;color:#059669}' +
+      '.chip-count{background:#EEF2FF;color:#4F46E5}' +
+      '.critical-box{margin:20px 36px 0;background:#DC2626;color:#fff;border-radius:8px;padding:14px 18px}' +
+      '.critical-box h2{font-size:14px;margin:0 0 4px}' +
+      '.critical-box p{font-size:11px;opacity:.9;margin:0;line-height:1.5}' +
+      '.clean-box{margin:20px 36px 0;background:#059669;color:#fff;border-radius:8px;padding:14px 18px}' +
+      '.clean-box h2{font-size:14px;margin:0 0 4px}' +
+      '.cards{padding:20px 36px 36px}' +
+      '.card{border:1px solid #E2E8F0;border-radius:10px;margin-bottom:18px;overflow:hidden}' +
+      '.card-header{padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #E2E8F0}' +
+      '.card-header h3{font-size:14px;font-weight:700;margin:0;flex:1}' +
+      '.severity{font-size:10px;font-weight:700;padding:3px 10px;border-radius:4px;text-transform:uppercase}' +
+      '.infra{background:#FEF2F2;color:#DC2626}.dev{background:#FDF4FF;color:#7C3AED}' +
+      '.arch{background:#FFF7ED;color:#C2410C}.config{background:#ECFDF5;color:#059669}' +
+      '.rate{background:#FFFBEB;color:#D97706}.network{background:#EFF6FF;color:#2563EB}' +
+      '.card-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}' +
+      '.field-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94A3B8;margin-bottom:4px}' +
+      '.what-happened{font-size:12px;line-height:1.65;color:#334155}' +
+      '.who-acts{font-size:11px;font-weight:600;color:#4F46E5;margin-bottom:4px}' +
+      '.fix-text{font-size:12px;line-height:1.65;color:#1E293B}' +
+      '.fix-text code{background:#F1F5F9;border:1px solid #E2E8F0;border-radius:3px;padding:1px 5px;font-size:10px;font-family:monospace}' +
+      '.log-line{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;padding:8px 10px;font-family:monospace;font-size:10px;color:#DC2626;line-height:1.5;word-break:break-all}' +
+      '.kb-row{background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:8px 12px;font-size:11px;color:#1E293B}' +
+      '.footer{padding:16px 36px;border-top:1px solid #E2E8F0;font-size:10px;color:#94A3B8;display:flex;justify-content:space-between}' +
+    '</style></head><body><div class="page">' +
+
+    '<div class="page-header">' +
+      '<h1>Testsigma Agent Log Report</h1>' +
+      '<p>Generated: ' + timestamp + '</p>' +
+    '</div>' +
+
+    '<div class="summary-bar">' +
+      '<span class="summary-chip chip-count">' + agentLastResults.length + ' issue' + (agentLastResults.length !== 1 ? 's' : '') + ' detected</span>' +
+      (hasCritical ? '<span class="summary-chip chip-critical">⚠ Requires specialist action</span>' : '<span class="summary-chip chip-clean">✓ No critical issues</span>') +
+      agentLastResults.map(e => '<span class="summary-chip ' + (e.sig.critical ? 'chip-critical' : 'chip-count') + '">' + escHtml(e.sig.label) + '</span>').join('') +
+    '</div>' +
+
+    (hasCritical
+      ? '<div class="critical-box"><h2>⚠ Action Required Before Re-Running Tests</h2>' +
+        '<p>One or more issues below need to be fixed by your IT team or developer before tests can run successfully.</p></div>'
+      : '') +
+
+    '<div class="cards">' +
     agentLastResults.map(({sig, matchedLine, kbMatch}) =>
       '<div class="card">' +
-      '<div class="badge ' + sig.badgeClass + '">' + sig.tier + '</div>' +
-      '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + escHtml(sig.label) + '</div>' +
-      '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748B;margin-bottom:3px">Exception</div>' +
-      '<pre>' + escHtml((matchedLine || 'See log').slice(0, 300)) + '</pre>' +
-      '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748B;margin:8px 0 3px">Fix</div>' +
-      '<div style="font-size:11px">' + sig.fix + '</div>' +
-      (kbMatch ? '<div style="margin-top:8px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748B;margin-bottom:3px">KB Match</div><div class="kb">Issue #' + kbMatch.number + ': ' + escHtml(kbMatch.title) + '</div></div>' : '') +
+        '<div class="card-header">' +
+          '<span class="severity ' + sig.badgeClass + '">' + sig.tier + '</span>' +
+          '<h3>' + escHtml(sig.label) + '</h3>' +
+          '<span style="font-size:11px;color:#64748B">' + (severityLabel[sig.tier] || '') + '</span>' +
+        '</div>' +
+        '<div class="card-body">' +
+          '<div><div class="field-label">What happened</div>' +
+            '<div class="what-happened">' + escHtml(sig.summary) + '</div>' +
+          '</div>' +
+          '<div><div class="field-label">What to do</div>' +
+            '<div class="fix-text">' + sig.fix + '</div>' +
+          '</div>' +
+          (matchedLine
+            ? '<div><div class="field-label">Log line that triggered this</div>' +
+              '<div class="log-line">' + escHtml(matchedLine.slice(0, 300)) + '</div></div>'
+            : '') +
+          (kbMatch
+            ? '<div class="kb-row">📖 Previously seen — Issue #' + kbMatch.number + ': <strong>' + escHtml(kbMatch.title) + '</strong></div>'
+            : '<div class="kb-row" style="background:#FFFBEB;border-color:#FDE68A">🆕 First time seen — recorded for future reference</div>') +
+        '</div>' +
       '</div>'
     ).join('') +
-    '<div class="footer">Testsigma Analyser · ' + agentLastResults.length + ' signature(s) · ' + AGENT_KB_REPO + '</div>' +
-    '</body></html>';
+    '</div>' +
+
+    '<div class="footer">' +
+      '<span>Testsigma Analyser</span>' +
+      '<span>' + agentLastResults.length + ' signature(s) · ' + AGENT_KB_REPO + '</span>' +
+    '</div>' +
+    '</div></body></html>'
 
   try {
     if (window.htmlDocx && window.htmlDocx.asBlob) {
