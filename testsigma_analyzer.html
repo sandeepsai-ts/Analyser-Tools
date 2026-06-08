@@ -6,6 +6,7 @@
 <title>Testsigma Performance Optimization Matrix</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#F8FAFC;--card:#fff;--border:#E2E8F0;--text:#0F172A;--muted:#64748B;--accent:#4F46E5;--accent-light:#EEF2FF;--green:#059669;--green-light:#ECFDF5;--red:#DC2626;--amber:#D97706}
@@ -225,6 +226,80 @@ tr.fallback-row td{background:#FFFBEB}
 .feedback-submit{height:32px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:.15s}
 .feedback-submit:hover{background:#4338CA}
 .feedback-note{font-size:9px;color:var(--muted);text-align:center;line-height:1.4}
+
+/* ══════════════════════════════════════════════════════
+   AGENT LOG ANALYZER — embedded in Process Logs tab
+═══════════════════════════════════════════════════════ */
+
+/* ── Agent Analyzer sub-panel ── */
+.agent-wrap{display:flex;flex-direction:column;height:100%;overflow:hidden}
+.agent-intake{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0}
+.agent-drop-zone{border:1.5px dashed var(--border);border-radius:8px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:10px;color:var(--muted);transition:.15s;background:var(--bg);user-select:none;min-height:80px}
+.agent-drop-zone:hover,.agent-drop-zone.drag-over{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.agent-drop-zone.loaded{border-color:var(--green);color:var(--green);background:var(--green-light)}
+.agent-drop-zone .dz-icon{font-size:20px}
+.agent-drop-zone .dz-label{font-weight:600;font-size:10px}
+.agent-drop-zone .dz-sub{font-size:9px;opacity:.7}
+.agent-paste-wrap{display:flex;flex-direction:column;gap:4px}
+.agent-paste-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.agent-paste-area{flex:1;min-height:68px;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:7px;font-family:ui-monospace,monospace;font-size:10px;resize:none;outline:none;color:var(--text);line-height:1.5}
+.agent-paste-area:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
+/* ── Results area ── */
+.agent-results{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.agent-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:11px;gap:8px}
+.agent-empty-icon{font-size:32px;opacity:.3}
+/* ── Critical banner ── */
+.agent-critical-banner{background:#DC2626;color:#fff;border-radius:8px;padding:12px 16px;display:flex;align-items:flex-start;gap:10px;flex-shrink:0}
+.agent-critical-banner .cb-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.agent-critical-banner .cb-body{flex:1}
+.agent-critical-banner .cb-title{font-size:12px;font-weight:800;letter-spacing:.02em;margin-bottom:3px}
+.agent-critical-banner .cb-sub{font-size:10px;opacity:.9;line-height:1.5}
+/* ── Match cards ── */
+.agent-match-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+.amc-header{padding:9px 12px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.amc-sig-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:4px}
+.amc-sig-badge.infra{background:#FEF2F2;color:#DC2626}
+.amc-sig-badge.dev{background:#FDF4FF;color:#7C3AED}
+.amc-sig-badge.arch{background:#FFF7ED;color:#C2410C}
+.amc-sig-badge.config{background:#ECFDF5;color:#059669}
+.amc-sig-badge.rate{background:#FFFBEB;color:#D97706}
+.amc-sig-badge.network{background:#EFF6FF;color:#2563EB}
+.amc-title{font-size:11px;font-weight:700;color:var(--text);flex:1}
+.amc-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.amc-section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.amc-exception{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-family:ui-monospace,monospace;font-size:9.5px;color:#DC2626;line-height:1.6;word-break:break-all;max-height:80px;overflow-y:auto}
+.amc-fix{font-size:10.5px;color:var(--text);line-height:1.6}
+.amc-fix strong{color:var(--accent)}
+.amc-kb-match{background:var(--accent-light);border:1px solid #C7D2FE;border-radius:5px;padding:7px 9px;font-size:10px;color:var(--text);line-height:1.5}
+.amc-kb-match a{color:var(--accent);text-decoration:none;font-weight:600}
+.amc-kb-match a:hover{text-decoration:underline}
+.amc-kb-status{font-size:9px;font-style:italic;color:var(--muted)}
+/* ── Results toolbar ── */
+.agent-results-toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0}
+.agent-results-toolbar-left{font-size:10px;font-weight:600;color:var(--muted)}
+.btn-agent-dl{height:26px;padding:0 12px;border-radius:5px;border:none;background:var(--accent);color:#fff;font-size:10px;font-weight:700;cursor:pointer;transition:.15s}
+.btn-agent-dl:hover{background:#4338CA}
+.btn-agent-dl:disabled{background:#C7D2FE;cursor:not-allowed}
+/* ── Agent Logs pane ── */
+.pane-agent{padding:0;overflow:hidden;display:none;flex-direction:column}
+.pane-agent.active{display:flex}
+/* Agent results area lives in the content section when Agent pane is active */
+.agent-content-panel{display:none;flex:1;flex-direction:column;overflow:hidden}
+.agent-content-panel.active{display:flex}
+
+/* ── Improved tool log articulation ── */
+.log-entry.level-ERROR .log-msg{color:#DC2626}
+.log-entry.level-WARN .log-msg{color:#D97706}
+.log-entry.level-OK .log-msg{color:#059669}
+.log-insight-bar{padding:8px 16px;border-bottom:1px solid var(--border);background:var(--card);display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+.log-insight-chip{font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.log-insight-chip.err{background:#FEF2F2;color:#DC2626}
+.log-insight-chip.warn{background:#FFFBEB;color:#D97706}
+.log-insight-chip.ok{background:#ECFDF5;color:#059669}
+.log-insight-chip.info{background:var(--accent-light);color:var(--accent)}
+.log-insight-chip.neutral{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+.log-pinned-error{margin:8px 16px 0;padding:8px 10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;font-family:ui-monospace,monospace;font-size:9.5px;color:#DC2626;line-height:1.6;display:none}
+.log-pinned-error.visible{display:block}
 </style>
 </head>
 <body>
@@ -260,6 +335,10 @@ tr.fallback-row td{background:#FFFBEB}
       <button class="nav-rail-btn" id="navDocs" onclick="switchPane('docs')" title="Docs">
         <span class="nav-icon">📖</span>
         <span class="nav-label">Docs</span>
+      </button>
+      <button class="nav-rail-btn" id="navAgent" onclick="switchPane('agent')" title="Agent Logs">
+        <span class="nav-icon">🔍</span>
+        <span class="nav-label">Agent</span>
       </button>
     </nav>
 
@@ -550,6 +629,40 @@ tr.fallback-row td{background:#FFFBEB}
 
     </aside>
 
+
+    <!-- ── Agent Logs Pane ── -->
+    <aside class="side-pane pane-agent" id="paneAgent">
+      <div style="padding:14px 14px 8px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:2px">Agent Log Analyser</div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.5">Drop or paste a Testsigma agent log — signatures detected automatically.</div>
+      </div>
+      <!-- Intake: drop zone -->
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div class="agent-drop-zone" id="agentDropZone"
+             onclick="document.getElementById('agentFileInput').click()"
+             ondragover="agentDragOver(event)"
+             ondragleave="agentDragLeave(event)"
+             ondrop="agentDrop(event)">
+          <span class="dz-icon">📂</span>
+          <span class="dz-label" id="agentDropLabel">Drop file or click to browse</span>
+          <span class="dz-sub">.txt · .log · any terminal output</span>
+          <input type="file" id="agentFileInput" accept=".txt,.log" style="display:none"
+                 onchange="agentFileSelected(event)"/>
+        </div>
+        <div style="margin-top:8px">
+          <div class="agent-paste-label">Paste terminal snippet</div>
+          <textarea class="agent-paste-area" id="agentPasteArea"
+                    placeholder="Paste raw log output here — analysis runs automatically..."
+                    oninput="agentPasteDebounce()" style="margin-top:4px;min-height:80px;width:100%"></textarea>
+        </div>
+      </div>
+      <!-- Status + download -->
+      <div id="agentSideSummary" style="display:none;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;display:none;align-items:center;justify-content:space-between;gap:6px">
+        <span style="font-size:10px;font-weight:600;color:var(--muted)" id="agentSideLabel"></span>
+        <button class="btn-agent-dl" onclick="agentDownloadReport()">Download (.docx)</button>
+      </div>
+    </aside>
+
     <section class="content">
       <div id="kpiBar" class="kpi-bar">
         <div class="kpi"><div class="kpi-label">Baseline total</div><div class="kpi-val" id="kpiT1">—</div></div>
@@ -558,6 +671,20 @@ tr.fallback-row td{background:#FFFBEB}
         <div class="kpi accent"><div class="kpi-label">Expected total</div><div class="kpi-val" id="kpiExp">—</div></div>
         <div class="kpi green"><div class="kpi-label">Projected savings</div><div class="kpi-val" id="kpiSav">—</div></div>
         <div class="kpi" id="kpiSlowWrap"><div class="kpi-label">Slowest step</div><div class="kpi-val" id="kpiSlow" style="font-size:13px;color:var(--red)">—</div></div>
+      </div>
+
+      <!-- Agent Log Analyser results — shown when Agent pane is active -->
+      <div class="agent-content-panel" id="agentContentPanel">
+        <div class="agent-results-toolbar" id="agentResultsToolbar" style="display:none">
+          <span class="agent-results-toolbar-left" id="agentResultsLabel">0 signatures detected</span>
+        </div>
+        <div class="agent-results" id="agentResults">
+          <div class="agent-empty">
+            <span class="agent-empty-icon">🔍</span>
+            <span>Upload or paste a Testsigma agent log to begin analysis</span>
+            <span style="font-size:10px;opacity:.6">Results appear here · Matches auto-logged to knowledge base</span>
+          </div>
+        </div>
       </div>
 
       <div class="content-body">
@@ -585,6 +712,18 @@ tr.fallback-row td{background:#FFFBEB}
 
         <div class="tab-panel" id="tabLogs">
           <div class="log-panel">
+            <!-- Insight summary bar -->
+            <div class="log-insight-bar" id="logInsightBar" style="display:none">
+              <span style="font-size:10px;font-weight:700;color:var(--muted)">Run summary:</span>
+              <span class="log-insight-chip info"    id="logChipInfo"></span>
+              <span class="log-insight-chip ok"      id="logChipOk"></span>
+              <span class="log-insight-chip warn"    id="logChipWarn"></span>
+              <span class="log-insight-chip err"     id="logChipErr"></span>
+              <span class="log-insight-chip neutral" id="logChipDebug"></span>
+            </div>
+            <!-- Pinned last-error surface -->
+            <div class="log-pinned-error" id="logPinnedError"></div>
+            <!-- Toolbar -->
             <div class="log-toolbar">
               <div class="log-toolbar-left">
                 <select class="log-filter" id="logFilter" onchange="filterLogs()">
@@ -599,7 +738,7 @@ tr.fallback-row td{background:#FFFBEB}
               </div>
               <div style="display:flex;gap:6px">
                 <button class="btn btn-log" onclick="clearLogs()">Clear</button>
-                <button class="btn btn-log" onclick="downloadLogs()">↓ Download .txt</button>
+                <button class="btn btn-log" onclick="downloadLogs()">Download .txt</button>
               </div>
             </div>
             <div class="log-entries" id="logEntries">
@@ -607,6 +746,8 @@ tr.fallback-row td{background:#FFFBEB}
             </div>
           </div>
         </div>
+
+
       </div>
     </section>
   </div>
@@ -643,8 +784,38 @@ function log(level, msg) {
     badge.style.display = 'inline';
     badge.textContent   = errorCount + (errorCount === 1 ? ' issue' : ' issues');
   }
+  /* Pin the most recent ERROR to the surface bar */
+  if (level === 'ERROR') {
+    const pin = $('logPinnedError');
+    if (pin) {
+      pin.textContent = '[' + ts + '] ERROR: ' + String(msg);
+      pin.classList.add('visible');
+    }
+  }
   appendLogEntry(entry);
   updateLogCount();
+  updateLogInsightBar();
+}
+
+function updateLogInsightBar() {
+  const bar = $('logInsightBar');
+  if (!bar || !logEntries.length) return;
+  bar.style.display = 'flex';
+  const counts = {INFO:0, OK:0, WARN:0, ERROR:0, DEBUG:0};
+  logEntries.forEach(e => { if (counts[e.level] !== undefined) counts[e.level]++; });
+  const chips = {
+    logChipInfo:  counts.INFO  ? counts.INFO  + ' INFO'  : null,
+    logChipOk:    counts.OK    ? counts.OK    + ' OK'    : null,
+    logChipWarn:  counts.WARN  ? counts.WARN  + ' WARN'  : null,
+    logChipErr:   counts.ERROR ? counts.ERROR + ' ERROR' : null,
+    logChipDebug: counts.DEBUG ? counts.DEBUG + ' DEBUG' : null,
+  };
+  Object.entries(chips).forEach(([id, val]) => {
+    const el = $(id);
+    if (!el) return;
+    if (val) { el.textContent = val; el.style.display = ''; }
+    else       el.style.display = 'none';
+  });
 }
 
 function appendLogEntry(entry) {
@@ -656,7 +827,7 @@ function appendLogEntry(entry) {
   if (filter !== 'ALL' && filter !== entry.level) return;
 
   const div = document.createElement('div');
-  div.className = 'log-entry';
+  div.className = 'log-entry level-' + entry.level;
   div.dataset.level = entry.level;
   div.innerHTML = `<span class="log-ts">${entry.ts}</span><span class="log-level ${entry.level}">${entry.level}</span><span class="log-msg">${escHtml(entry.msg)}</span>`;
   container.appendChild(div);
@@ -1315,6 +1486,14 @@ function switchPane(pane) {
   $('nav' + pane.charAt(0).toUpperCase() + pane.slice(1))?.classList.add('active');
   document.querySelectorAll('.side-pane').forEach(p => p.classList.remove('active'));
   $('pane' + pane.charAt(0).toUpperCase() + pane.slice(1))?.classList.add('active');
+  /* Agent pane: show agent content area, hide normal content-body + kpi bar */
+  const isAgent = pane === 'agent';
+  const contentBody = document.querySelector('.content-body');
+  const agentPanel  = $('agentContentPanel');
+  const kpiBar      = $('kpiBar');
+  if (contentBody) contentBody.style.display = isAgent ? 'none' : '';
+  if (agentPanel)  agentPanel.classList.toggle('active', isAgent);
+  if (kpiBar && isAgent) kpiBar.classList.remove('visible');
 }
 
 /* ── Docs subtab switcher ── */
@@ -1453,6 +1632,408 @@ async function submitFeedback() {
 $('aiKey').addEventListener('input', () => sessionStorage.setItem('ts_ai_key', $('aiKey').value));
 $('tsTokenGlobal').addEventListener('input', () => sessionStorage.setItem('ts_bearer', $('tsTokenGlobal').value));
 $('aiEngine').addEventListener('change', () => sessionStorage.setItem('ts_engine', $('aiEngine').value));
+/* ══════════════════════════════════════════════════════════════════════════════
+   AGENT LOG ANALYZER
+   - Autonomous parsing engine with pre-loaded signature dictionary
+   - GitHub Issues cross-reference via Worker proxy (authenticated)
+   - Auto-logs novel patterns to knowledge-base repo for future lookup
+   - Report download as .docx (html-docx-js) with fallback to .html
+═══════════════════════════════════════════════════════════════════════════════*/
+
+// -- Configuration -----------------------------------------------------------
+const AGENT_KB_REPO      = 'sandeepsai-ts/ts-agent-knowledge-base';
+const AGENT_WORKER_BASE  = 'https://ts-proxy.kankanala-sandeepsai.workers.dev';
+const AGENT_LOOKUP_ROUTE = AGENT_WORKER_BASE + '/issues-lookup';
+const AGENT_LOG_ROUTE    = AGENT_WORKER_BASE + '/log-report';
+
+// -- Signature dictionary ----------------------------------------------------
+// Each entry: { id, label, tier, keywords[], fix, badgeClass }
+// tier: 'infra'|'dev'|'arch'|'config'|'rate'|'network'
+const AGENT_SIGNATURES = [
+  {
+    id: 'PORT_CONFLICT',
+    label: 'Port Conflict',
+    tier: 'config',
+    badgeClass: 'config',
+    keywords: ['port already in use', '8080', '8383', 'java.net.bindexception', 'address already in use'],
+    fix: '<strong>Standard Automation Patch.</strong> Run terminal task-kill commands (<code>kill -9 &lt;PID&gt;</code> on Mac/Linux or <code>taskkill /F /PID &lt;PID&gt;</code> on Windows) to clear the occupied socket. Alternatively, modify the port mappings in your <code>agent.properties</code> configuration file to an unused port.',
+    critical: false
+  },
+  {
+    id: 'SSL_HANDSHAKE',
+    label: 'SSL / Certificate Failure',
+    tier: 'infra',
+    badgeClass: 'infra',
+    keywords: ['sslhandshakeexception', 'sun.security.validator.validatorexception', 'pkix path building failed', 'unable to find valid certification path', 'certificate_unknown', 'handshake_failure'],
+    fix: '<strong>INFRASTRUCTURE & NETWORK ADMIN INTERVENTION REQUIRED.</strong> Your corporate security firewall or proxy is blocking the outbound TLS connection to the Testsigma cloud dashboard. Coordinate with NetOps to inject your corporate custom SSL certificates directly into the local Java/Agent truststore (<code>$JAVA_HOME/lib/security/cacerts</code>) using <code>keytool -importcert</code>.',
+    critical: true
+  },
+  {
+    id: 'MOBILE_DRIVER',
+    label: 'Mobile Driver / Appium Crash',
+    tier: 'dev',
+    badgeClass: 'dev',
+    keywords: ['webdriverexception', 'could not join appium server session', 'mobile driver initialization failed', 'appiumexception', 'no such driver'],
+    fix: '<strong>DEVELOPER & ARCHITECTURE INTERVENTION REQUIRED.</strong> Local mobile automation runtime versioning mismatch detected between your Appium ecosystem dependencies. Re-validate your Node.js global environment paths (<code>appium --version</code>), reinstall the target platform driver (<code>appium driver install uiautomator2</code> / <code>xcuitest</code>), and confirm the device UDID is reachable (<code>adb devices</code> / <code>instruments -s devices</code>).',
+    critical: true
+  },
+  {
+    id: 'RATE_LIMIT',
+    label: 'API Rate Limit / Quota Exceeded',
+    tier: 'rate',
+    badgeClass: 'rate',
+    keywords: ['429', 'quota exceeded', 'resource_exhausted', 'rate limit', 'too many requests', 'retry in'],
+    fix: '<strong>AI API free-tier quota reached.</strong> The analysis engine has exhausted its per-minute or daily request allowance. Options: (1) Wait for quota reset (midnight UTC for Gemini free tier). (2) Switch to a different AI engine in the topbar dropdown. (3) Upgrade the AI API plan for higher throughput.',
+    critical: false
+  },
+  {
+    id: 'CORS_PROXY',
+    label: 'CORS / Network Proxy Block',
+    tier: 'network',
+    badgeClass: 'network',
+    keywords: ['failed to fetch', 'cors', 'disallowed cors origin', 'err_failed', 'network error', 'all 4 proxies failed', 'blocked by cors policy'],
+    fix: '<strong>Network/proxy configuration issue.</strong> The browser is blocked from reaching the target API due to CORS restrictions or a corporate firewall. Verify that the Cloudflare Worker proxy (<code>ts-proxy.kankanala-sandeepsai.workers.dev</code>) is deployed and accessible. If on a corporate network, confirm the Worker domain is not blocked by the firewall. As a fallback, use the <strong>curl</strong> mode in the Analyser to download data offline.',
+    critical: false
+  },
+  {
+    id: 'AGENT_OFFLINE',
+    label: 'Testsigma Agent Offline / Unreachable',
+    tier: 'infra',
+    badgeClass: 'infra',
+    keywords: ['agent is not connected', 'agent offline', 'unable to connect to agent', 'connection refused', 'agent not registered', 'agent timed out'],
+    fix: '<strong>INFRASTRUCTURE INTERVENTION REQUIRED.</strong> The Testsigma local agent is not registered with the cloud dashboard. Restart the agent service (<code>./start.sh</code> in the agent installation directory), verify the agent token in <code>agent.properties</code> matches the one shown in Testsigma Settings → Agents, and confirm outbound access to <code>app.testsigma.com:443</code> is not firewalled.',
+    critical: true
+  },
+  {
+    id: 'OOM_CRASH',
+    label: 'Out of Memory / JVM Crash',
+    tier: 'arch',
+    badgeClass: 'arch',
+    keywords: ['outofmemoryerror', 'java heap space', 'gc overhead limit exceeded', 'jvm crash', 'permgen space', 'metaspace'],
+    fix: '<strong>ARCHITECTURE REVIEW REQUIRED.</strong> The JVM running the Testsigma agent or driver has exhausted its heap allocation. Increase the heap size by setting <code>JAVA_OPTS="-Xmx2g -Xms512m"</code> in the agent startup script. If the issue persists under normal workloads, audit test parallelism levels and reduce concurrent driver instances.',
+    critical: true
+  },
+  {
+    id: 'BROWSER_DRIVER',
+    label: 'Browser Driver Version Mismatch',
+    tier: 'dev',
+    badgeClass: 'dev',
+    keywords: ['session not created', 'this version of chromedriver', 'browser version must be between', 'geckodriver', 'edgedriver', 'safaridriver', 'driver version mismatch'],
+    fix: '<strong>DEVELOPER ACTION REQUIRED.</strong> The installed browser and WebDriver versions are incompatible. Run <code>chromedriver --version</code> and compare against your installed Chrome version. Use <code>webdriver-manager update</code> or download the matching driver from the official source. Consider pinning browser versions in your CI environment to prevent auto-update drift.',
+    critical: false
+  }
+];
+
+// -- State -------------------------------------------------------------------
+let agentLastResults  = [];   // [{sig, matchedLine, kbMatch}]
+let agentLastRawText  = '';
+let agentPasteTimer   = null;
+
+// -- Agent Log Analyzer is now a standalone top-level tab (tabAgent)
+
+// -- File drop handlers ------------------------------------------------------
+function agentDragOver(e) {
+  e.preventDefault();
+  $('agentDropZone').classList.add('drag-over');
+}
+function agentDragLeave() {
+  $('agentDropZone').classList.remove('drag-over');
+}
+function agentDrop(e) {
+  e.preventDefault();
+  $('agentDropZone').classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) agentReadFile(f);
+  else agentShowError('No file detected in drop.');
+}
+function agentFileSelected(e) {
+  const f = e.target.files[0];
+  if (f) agentReadFile(f);
+}
+function agentReadFile(f) {
+  const zone  = $('agentDropZone');
+  const label = $('agentDropLabel');
+  zone.classList.remove('loaded');
+  label.textContent = 'Reading ' + f.name + '...';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result;
+    zone.classList.add('loaded');
+    label.textContent = f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
+    agentAnalyze(text, f.name);
+  };
+  reader.onerror = () => agentShowError('Could not read file: ' + f.name);
+  reader.readAsText(f);
+}
+
+// -- Paste debounce ----------------------------------------------------------
+function agentPasteDebounce() {
+  clearTimeout(agentPasteTimer);
+  agentPasteTimer = setTimeout(() => {
+    const text = $('agentPasteArea').value.trim();
+    if (text.length > 20) agentAnalyze(text, 'pasted-snippet');
+  }, 600);
+}
+
+// -- Core analysis engine ----------------------------------------------------
+async function agentAnalyze(rawText, sourceName) {
+  agentLastRawText = rawText;
+  agentLastResults = [];
+
+  const resultsEl  = $('agentResults');
+  const toolbarEl  = $('agentResultsToolbar');
+  const labelEl    = $('agentResultsLabel');
+
+  resultsEl.innerHTML = '<div class="agent-empty"><span class="agent-empty-icon" style="animation:spin .6s linear infinite;display:inline-block">⟳</span><span>Analyzing...</span></div>';
+  toolbarEl.style.display = 'none';
+
+  const lower = rawText.toLowerCase();
+
+  // 1. Match against signature dictionary
+  const matched = AGENT_SIGNATURES.filter(sig =>
+    sig.keywords.some(kw => lower.includes(kw.toLowerCase()))
+  );
+
+  // 2. Extract exception strings from the raw text
+  const exceptionLines = extractExceptions(rawText);
+
+  // 3. For each match, look up KB + auto-log novel patterns
+  const enriched = await Promise.all(matched.map(async sig => {
+    const matchedLine = findMatchedLine(rawText, sig.keywords);
+    const kbMatch     = await agentKBLookup(sig.id, exceptionLines);
+    if (!kbMatch) {
+      // Auto-log novel occurrence to KB repo
+      agentKBAutoLog(sig, matchedLine, sourceName, exceptionLines).catch(() => {});
+    }
+    return { sig, matchedLine, kbMatch };
+  }));
+
+  agentLastResults = enriched;
+
+  // 4. Render
+  if (!enriched.length) {
+    resultsEl.innerHTML = '<div class="agent-empty"><span class="agent-empty-icon">✅</span><span>No known Testsigma error signatures detected.<br/>Log appears clean or contains an unrecognized pattern.</span></div>';
+    toolbarEl.style.display = 'flex';
+    labelEl.textContent = 'No signatures matched';
+    return;
+  }
+
+  // Build output
+  const hasCritical = enriched.some(e => e.sig.critical);
+  let html = '';
+
+  if (hasCritical) {
+    html += `<div class="agent-critical-banner">
+      <span class="cb-icon">⚠</span>
+      <div class="cb-body">
+        <div class="cb-title">CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div>
+        <div class="cb-sub">${enriched.filter(e=>e.sig.critical).map(e=>e.sig.label).join(' · ')} — requires specialist intervention before re-running tests.</div>
+      </div>
+    </div>`;
+  }
+
+  enriched.forEach(({ sig, matchedLine, kbMatch }) => {
+    html += buildMatchCard(sig, matchedLine, kbMatch);
+  });
+
+  resultsEl.innerHTML = html;
+  toolbarEl.style.display = 'flex';
+  labelEl.textContent = enriched.length + ' signature' + (enriched.length > 1 ? 's' : '') + ' detected — ' + (hasCritical ? '⚠ critical' : 'review recommended');
+  /* Sync side pane summary label */
+  const sideSum = $('agentSideSummary');
+  const sideLbl = $('agentSideLabel');
+  if (sideSum) sideSum.style.display = 'flex';
+  if (sideLbl) sideLbl.textContent = enriched.length + ' signature' + (enriched.length > 1 ? 's' : '') + ' detected';
+}
+
+// -- Build a match card HTML string ------------------------------------------
+function buildMatchCard(sig, matchedLine, kbMatch) {
+  const escLine = matchedLine ? escHtml(matchedLine.slice(0, 300)) : 'See log text';
+  const kbSection = kbMatch
+    ? `<div>
+        <div class="amc-section-label">Knowledge Base Match</div>
+        <div class="amc-kb-match">
+          <strong>Issue #${kbMatch.number}:</strong> ${escHtml(kbMatch.title)}<br/>
+          ${kbMatch.body ? escHtml(kbMatch.body.slice(0, 200)) + (kbMatch.body.length > 200 ? '...' : '') : ''}
+          <br/><a href="${kbMatch.url}" target="_blank" rel="noopener">View full KB entry →</a>
+        </div>
+      </div>`
+    : `<div class="amc-kb-status">No prior KB entry — this occurrence has been auto-logged for future reference.</div>`;
+
+  return `<div class="agent-match-card">
+    <div class="amc-header">
+      <span class="amc-sig-badge ${sig.badgeClass}">${sig.tier.toUpperCase()}</span>
+      <span class="amc-title">${escHtml(sig.label)}</span>
+    </div>
+    <div class="amc-body">
+      <div>
+        <div class="amc-section-label">Matched Exception</div>
+        <div class="amc-exception">${escLine}</div>
+      </div>
+      <div>
+        <div class="amc-section-label">Resolution</div>
+        <div class="amc-fix">${sig.fix}</div>
+      </div>
+      ${kbSection}
+    </div>
+  </div>`;
+}
+
+// -- Extract exception lines from raw text -----------------------------------
+function extractExceptions(text) {
+  const lines = text.split('\n');
+  return lines
+    .filter(l => /exception|error|failed|crash|fatal/i.test(l))
+    .map(l => l.trim())
+    .filter(l => l.length > 10 && l.length < 500)
+    .slice(0, 10);
+}
+
+// -- Find the specific line that triggered the match -------------------------
+function findMatchedLine(text, keywords) {
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (keywords.some(kw => lower.includes(kw.toLowerCase()))) return line.trim();
+  }
+  return null;
+}
+
+// -- KB lookup via Worker proxy (/issues-lookup route) -----------------------
+async function agentKBLookup(sigId, exceptionLines) {
+  try {
+    const query = encodeURIComponent(sigId + ' ' + exceptionLines.slice(0, 2).join(' '));
+    const res   = await fetch(AGENT_LOOKUP_ROUTE + '?q=' + query, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) return null;
+    const issues = await res.json();
+    if (!Array.isArray(issues) || !issues.length) return null;
+    const match = issues[0];
+    return { number: match.number, title: match.title, body: match.body, url: match.html_url };
+  } catch(_) {
+    return null;   /* Silent — KB unavailable doesn't block analysis */
+  }
+}
+
+// -- Auto-log novel pattern to KB repo (/log-report route) -------------------
+async function agentKBAutoLog(sig, matchedLine, sourceName, exceptionLines) {
+  const title = '[' + sig.id + '] ' + sig.label + ' — auto-logged from ' + sourceName;
+  const body  = [
+    '**Signature ID:** ' + sig.id,
+    '**Category:** ' + sig.tier,
+    '**Source:** ' + sourceName,
+    '',
+    '**Matched exception:**',
+    '```',
+    (matchedLine || 'N/A').slice(0, 500),
+    '```',
+    '',
+    '**Additional exception lines:**',
+    '```',
+    exceptionLines.slice(0, 5).join('\n'),
+    '```',
+    '',
+    '**Resolution applied:**',
+    sig.fix.replace(/<[^>]+>/g, ''),  /* strip HTML tags for plain text */
+    '',
+    '---',
+    '_Auto-logged by Testsigma Analyser · ' + new Date().toISOString() + '_'
+  ].join('\n');
+
+  await fetch(AGENT_LOG_ROUTE, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ title, body, labels: ['known-issue', 'auto-logged', sig.tier] })
+  });
+}
+
+// -- Error helper ------------------------------------------------------------
+function agentShowError(msg) {
+  const el = $('agentResults');
+  if (el) el.innerHTML = '<div class="agent-empty" style="color:var(--red)">' + escHtml(msg) + '</div>';
+}
+
+// -- Report download (.docx via html-docx-js, fallback to .html) -------------
+function agentDownloadReport() {
+  if (!agentLastResults.length) return;
+
+  const hasCritical = agentLastResults.some(e => e.sig.critical);
+  const timestamp   = new Date().toLocaleString();
+
+  const reportHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Testsigma Agent Log Analysis Report</title>
+<style>
+  body{font-family:Arial,sans-serif;color:#0F172A;margin:40px;line-height:1.6}
+  h1{font-size:20px;color:#1E1B4B;border-bottom:3px solid #4F46E5;padding-bottom:8px}
+  h2{font-size:14px;color:#4F46E5;text-transform:uppercase;letter-spacing:.06em;margin-top:24px}
+  .critical-banner{background:#DC2626;color:#fff;padding:14px 18px;border-radius:6px;margin:16px 0;font-weight:700}
+  .card{border:1px solid #E2E8F0;border-radius:8px;padding:14px 16px;margin-bottom:14px;page-break-inside:avoid}
+  .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;margin-bottom:8px}
+  .badge.infra{background:#FEF2F2;color:#DC2626}
+  .badge.dev{background:#FDF4FF;color:#7C3AED}
+  .badge.arch{background:#FFF7ED;color:#C2410C}
+  .badge.config{background:#ECFDF5;color:#059669}
+  .badge.rate{background:#FFFBEB;color:#D97706}
+  .badge.network{background:#EFF6FF;color:#2563EB}
+  .card-title{font-size:13px;font-weight:700;margin-bottom:10px}
+  .label{font-size:9px;text-transform:uppercase;font-weight:700;color:#64748B;letter-spacing:.06em;margin-bottom:4px}
+  pre{background:#F1F5F9;padding:8px 10px;border-radius:4px;font-size:10px;overflow-wrap:break-word;white-space:pre-wrap}
+  .fix{font-size:11px}
+  .kb{background:#EEF2FF;border:1px solid #C7D2FE;padding:8px 10px;border-radius:4px;font-size:11px}
+  .footer{margin-top:32px;font-size:10px;color:#64748B;border-top:1px solid #E2E8F0;padding-top:12px}
+</style>
+</head>
+<body>
+<h1>Testsigma Agent Log Analysis Report</h1>
+<p style="font-size:11px;color:#64748B">Generated: ${timestamp}</p>
+${hasCritical ? '<div class="critical-banner">⚠ CRITICAL: DEVELOPER / ARCHITECTURE OVERVIEW REQUIRED</div>' : ''}
+${agentLastResults.map(({sig, matchedLine, kbMatch}) => `
+<div class="card">
+  <div class="badge ${sig.badgeClass}">${sig.tier}</div>
+  <div class="card-title">${escHtml(sig.label)}</div>
+  <div class="label">Matched Exception</div>
+  <pre>${escHtml((matchedLine || 'See log text').slice(0, 400))}</pre>
+  <div class="label" style="margin-top:10px">Resolution</div>
+  <div class="fix">${sig.fix}</div>
+  ${kbMatch ? `<div style="margin-top:10px"><div class="label">Knowledge Base Match</div><div class="kb"><strong>Issue #${kbMatch.number}:</strong> ${escHtml(kbMatch.title)}</div></div>` : ''}
+</div>`).join('')}
+<div class="footer">Testsigma Analyser · ${agentLastResults.length} signature(s) detected · ${AGENT_KB_REPO}</div>
+</body>
+</html>`;
+
+  /* Try .docx via html-docx-js if loaded; fall back to .html */
+  try {
+    if (typeof HTMLtoDOCX !== 'undefined') {
+      HTMLtoDOCX(reportHtml, null, {
+        title:  'Testsigma Agent Log Report',
+        margin: { top: 720, right: 720, bottom: 720, left: 720 }
+      }).then(blob => {
+        agentTriggerDownload(blob, 'Testsigma_Agent_Report.docx');
+      });
+    } else if (window.htmlDocx && window.htmlDocx.asBlob) {
+      const blob = window.htmlDocx.asBlob(reportHtml);
+      agentTriggerDownload(blob, 'Testsigma_Agent_Report.docx');
+    } else {
+      throw new Error('html-docx-js not available');
+    }
+  } catch(_) {
+    /* Fallback: download as .html */
+    const blob = new Blob([reportHtml], { type: 'text/html' });
+    agentTriggerDownload(blob, 'Testsigma_Agent_Report.html');
+  }
+}
+
+function agentTriggerDownload(blob, filename) {
+  const a  = document.createElement('a');
+  a.href   = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 
 // -- MAIN ORCHESTRATOR --
