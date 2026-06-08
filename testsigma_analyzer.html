@@ -1291,16 +1291,11 @@ $('addRunBtn').addEventListener('click', addRun);
 addRun();
 
 /* -------------------------------------------
-   FEEDBACK -- GitHub Issues API (no user login needed)
-   Uses a fine-grained PAT scoped only to issues:write
-   on this repo. Users never see the token.
-   SETUP: Replace GH_FEEDBACK_TOKEN with your PAT.
-   github.com > Settings > Developer settings >
-   Personal access tokens > Fine-grained > New token >
-   Repository: Analyser-Tools > Permissions: Issues = Read & Write
+   FEEDBACK -- routed through Cloudflare Worker
+   Token lives in Worker environment variable (never in HTML).
+   Worker handles the GitHub API call server-side.
 ------------------------------------------- */
-const GH_REPO           = 'sandeepsai-ts/Analyser-Tools';
-const GH_FEEDBACK_TOKEN = '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';
+const GH_FEEDBACK_ENDPOINT = 'https://ts-proxy.kankanala-sandeepsai.workers.dev/feedback';
 
 let fbType = 'bug';
 
@@ -1362,26 +1357,21 @@ async function submitFeedback() {
   ].join('\n');
 
   try {
-    const res = await fetch('https://api.github.com/repos/' + GH_REPO + '/issues', {
+    const res = await fetch(GH_FEEDBACK_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + GH_FEEDBACK_TOKEN,
-        'Content-Type':  'application/json',
-        'Accept':        'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body, labels: [label] })
     });
 
     if (res.ok) {
-      const issue = await res.json();
-      fbSt('Submitted as Issue #' + issue.number + '. Thank you!', 'green');
+      const data = await res.json();
+      fbSt('Submitted as Issue #' + data.number + '. Thank you!', 'green');
       $('fbText').value = '';
       $('fbName').value = '';
       setTimeout(() => { fbStatusEl.className = 'ts-status'; switchPane('analyser'); }, 2200);
     } else {
-      const err = await res.json();
-      throw new Error('GitHub API ' + res.status + ': ' + (err.message || 'unknown'));
+      const data = await res.json();
+      throw new Error('Worker error ' + res.status + ': ' + (data.error || 'unknown'));
     }
   } catch(err) {
     fbSt('Submission failed: ' + err.message, 'red');
