@@ -242,7 +242,7 @@ tr.fallback-row td{background:#FFFBEB}
       </select>
       <input id="aiKey" type="password" placeholder="AI API key..."/>
       <input id="tsTokenGlobal" type="password" placeholder="Testsigma API Key (used as Bearer)..." style="width:220px" title="Settings → API Keys in Testsigma. Used as Bearer token in all API calls."/>
-      <input id="customProxyUrl" type="text" placeholder="Proxy URL (optional)..." style="width:180px" title="Your Cloudflare Worker proxy URL, e.g. https://ts-proxy.YOUR_NAME.workers.dev — see Docs tab for setup"/>
+
     </div>
   </header>
 
@@ -310,7 +310,6 @@ tr.fallback-row td{background:#FFFBEB}
       <div class="docs-subtab-bar">
         <button class="docs-subtab active" data-docs="gettingStarted" onclick="switchDocsTab('gettingStarted')">Getting Started</button>
         <button class="docs-subtab" data-docs="howItWorks" onclick="switchDocsTab('howItWorks')">How It Works</button>
-        <button class="docs-subtab" data-docs="proxySetup" onclick="switchDocsTab('proxySetup')">Proxy Setup</button>
       </div>
 
       <!-- ── Getting Started subtab ── -->
@@ -533,132 +532,6 @@ tr.fallback-row td{background:#FFFBEB}
       </div><!-- end How It Works panel -->
 
 
-      <!-- ── Proxy Setup subtab ── -->
-      <div class="docs-subtab-panel" id="docsPanelProxySetup">
-
-        <div class="doc-section">
-          <div class="doc-h1"><span class="doc-icon">🔌</span>Proxy Setup</div>
-          <div class="doc-p">Corporate networks block public CORS proxies. The fix is deploying your own in 3 minutes using a Cloudflare Worker — free, permanent, and only forwards to Testsigma.</div>
-          <div class="doc-tip">Cloudflare Workers free tier: 100,000 requests/day, no credit card required. More than sufficient for a QA team.</div>
-        </div>
-
-        <hr class="doc-divider"/>
-
-        <div class="doc-section">
-          <div class="doc-h2">Step 1 — Create a Cloudflare account</div>
-          <div class="doc-step">
-            <div class="doc-step-num">1</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Go to cloudflare.com</div>
-              <div class="doc-step-desc">Click <strong>Sign Up</strong>. Enter your email and a password. No credit card needed for the free plan.</div>
-            </div>
-          </div>
-          <div class="doc-step">
-            <div class="doc-step-num">2</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Verify your email</div>
-              <div class="doc-step-desc">Cloudflare sends a verification link. Click it to activate the account.</div>
-            </div>
-          </div>
-        </div>
-
-        <hr class="doc-divider"/>
-
-        <div class="doc-section">
-          <div class="doc-h2">Step 2 — Create the Worker</div>
-          <div class="doc-step">
-            <div class="doc-step-num">1</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Go to Workers &amp; Pages</div>
-              <div class="doc-step-desc">In the Cloudflare dashboard left sidebar, click <strong>Workers &amp; Pages</strong> → <strong>Create</strong>.</div>
-            </div>
-          </div>
-          <div class="doc-step">
-            <div class="doc-step-num">2</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Click "Create Worker"</div>
-              <div class="doc-step-desc">Give it a name, e.g. <span class="doc-chip">ts-proxy</span>. Click <strong>Deploy</strong> (deploys the default worker first — you'll replace the code next).</div>
-            </div>
-          </div>
-          <div class="doc-step">
-            <div class="doc-step-num">3</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Click "Edit Code"</div>
-              <div class="doc-step-desc">Select all the default code in the editor and replace it with the code below. Then click <strong>Deploy</strong>.</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="doc-h2">Worker Code — copy and paste this exactly</div>
-        <div style="background:#0F172A;border-radius:7px;padding:10px;font-family:ui-monospace,monospace;font-size:9.5px;color:#94A3B8;line-height:1.7;margin-bottom:8px;white-space:pre-wrap">export default {
-  async fetch(request) {
-    // Only allow requests from your GitHub Pages domain
-    const ALLOWED_ORIGIN = 'https://sandeepsai-ts.github.io';
-    const origin = request.headers.get('Origin') || '';
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders(origin) });
-    }
-
-    const url = new URL(request.url);
-    const target = url.searchParams.get('url');
-
-    if (!target || !target.startsWith('https://app.testsigma.com/')) {
-      return new Response('Only Testsigma URLs allowed', { status: 403 });
-    }
-
-    const authHeader = request.headers.get('Authorization') || '';
-    const upstream = await fetch(target, {
-      method: request.method,
-      headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' }
-    });
-
-    const body = await upstream.text();
-    return new Response(body, {
-      status: upstream.status,
-      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
-    });
-  }
-};
-
-function corsHeaders(origin) {
-  return {
-    'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-  };
-}</div>
-        <div class="doc-warn">Update <strong>ALLOWED_ORIGIN</strong> to match your GitHub Pages URL if it differs from the one above. The worker only forwards requests to <span class="doc-chip">app.testsigma.com</span> — all other URLs return 403.</div>
-
-        <hr class="doc-divider"/>
-
-        <div class="doc-section">
-          <div class="doc-h2">Step 3 — Get your Worker URL and paste it in the tool</div>
-          <div class="doc-step">
-            <div class="doc-step-num">1</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Copy the Worker URL</div>
-              <div class="doc-step-desc">After deploying, Cloudflare shows your Worker URL:<br/><span class="doc-chip">https://ts-proxy.YOUR_NAME.workers.dev</span></div>
-            </div>
-          </div>
-          <div class="doc-step">
-            <div class="doc-step-num">2</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Paste into the Proxy URL field</div>
-              <div class="doc-step-desc">In the tool topbar, paste the URL into the <span class="doc-chip">Proxy URL (optional)</span> field. The tool will use your proxy first, bypassing all public proxies.</div>
-            </div>
-          </div>
-          <div class="doc-step">
-            <div class="doc-step-num">3</div>
-            <div class="doc-step-body">
-              <div class="doc-step-title">Share with your team</div>
-              <div class="doc-step-desc">Tell teammates to paste the same Worker URL into their Proxy URL field. It persists across sessions in the browser.</div>
-            </div>
-          </div>
-          <div class="doc-tip">The Proxy URL is saved in sessionStorage automatically — you only need to paste it once per browser session.</div>
-        </div>
-
-      </div><!-- end Proxy Setup panel -->
 
     </aside>
 
@@ -1208,18 +1081,15 @@ async function fetchFromTestsigma(idx) {
      forwards the request server-side -- including the Authorization header --
      and adds the required CORS response headers so the browser accepts it.
   ------------------------------------------------------------------------ */
-  /* Proxy list: own Cloudflare Worker first (set via topbar), then public fallbacks */
-  const ownProxy = ($('customProxyUrl')?.value.trim() || '').replace(/\/+$/, '');
+  /* Dedicated Cloudflare Worker proxy — hardcoded, tried first */
+  const OWN_PROXY   = 'https://ts-proxy.kankanala-sandeepsai.workers.dev';
   const CORS_PROXIES = [
-    ...(ownProxy ? [url => `${ownProxy}/?url=${encodeURIComponent(url)}`] : []),
+    url => `${OWN_PROXY}/?url=${encodeURIComponent(url)}`,
     url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
     url => `https://cors-anywhere.herokuapp.com/${url}`,
   ];
-  const PROXY_NAMES = [
-    ...(ownProxy ? ['Your Proxy'] : []),
-    'corsproxy.io', 'allorigins.win', 'cors-anywhere',
-  ];
+  const PROXY_NAMES = ['ts-proxy.workers.dev', 'corsproxy.io', 'allorigins.win', 'cors-anywhere'];
 
   async function fetchPageViaProxy(page) {
     const targetUrl = `${base}?page=${page}&size=100`;
@@ -1499,17 +1369,17 @@ function submitFeedback() {
   const aiKey   = sessionStorage.getItem('ts_ai_key');
   const tsToken = sessionStorage.getItem('ts_bearer');
   const engine  = sessionStorage.getItem('ts_engine');
-  const proxy   = sessionStorage.getItem('ts_proxy');
+
   if (aiKey)   $('aiKey').value = aiKey;
   if (tsToken) $('tsTokenGlobal').value = tsToken;
   if (engine)  $('aiEngine').value = engine;
-  if (proxy)   $('customProxyUrl').value = proxy;
+
 })();
 
 $('aiKey').addEventListener('input', () => sessionStorage.setItem('ts_ai_key', $('aiKey').value));
 $('tsTokenGlobal').addEventListener('input', () => sessionStorage.setItem('ts_bearer', $('tsTokenGlobal').value));
 $('aiEngine').addEventListener('change', () => sessionStorage.setItem('ts_engine', $('aiEngine').value));
-$('customProxyUrl').addEventListener('input', () => sessionStorage.setItem('ts_proxy', $('customProxyUrl').value));
+
 
 // -- MAIN ORCHESTRATOR --
 $('processBtn').addEventListener('click', async () => {
