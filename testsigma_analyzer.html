@@ -301,6 +301,16 @@ tr.fallback-row td{background:#FFFBEB}
         <input class="ts-input" id="fbName" type="text" placeholder="e.g. Sandeep"/>
       </div>
       <textarea class="fb-textarea" id="fbText" placeholder="Describe the issue or idea clearly. The more specific the better."></textarea>
+      <div class="ts-field" style="margin-top:2px">
+        <span class="ts-label">Attach log file (optional)</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="flex:1;height:28px;border:1px dashed var(--border);border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:10px;color:var(--muted);cursor:pointer;background:var(--bg);overflow:hidden;white-space:nowrap;text-overflow:ellipsis" id="fbFileLabel" for="fbFileInput">
+            Choose .txt or .log file...
+          </label>
+          <input type="file" id="fbFileInput" accept=".txt,.log" style="display:none" onchange="onFbFileChange()"/>
+          <button type="button" onclick="clearFbFile()" id="fbFileClear" style="display:none;height:28px;width:28px;border:none;background:#FEF2F2;color:var(--red);border-radius:5px;cursor:pointer;font-size:14px;flex-shrink:0" title="Remove file">×</button>
+        </div>
+      </div>
       <button class="fb-submit" id="fbSubmitBtn" onclick="submitFeedback()">Submit Feedback</button>
       <div class="ts-status" id="fbStatus"></div>
       <div class="fb-note" style="margin-top:4px">
@@ -1327,6 +1337,37 @@ function setFbType(type) {
   });
 }
 
+function onFbFileChange() {
+  const input = $('fbFileInput');
+  const label = $('fbFileLabel');
+  const clear = $('fbFileClear');
+  if (input.files && input.files[0]) {
+    label.textContent = input.files[0].name;
+    clear.style.display = 'flex';
+    label.style.borderColor = 'var(--green)';
+    label.style.color = 'var(--green)';
+  }
+}
+
+function clearFbFile() {
+  $('fbFileInput').value = '';
+  $('fbFileLabel').textContent = 'Choose .txt or .log file...';
+  $('fbFileLabel').style.borderColor = '';
+  $('fbFileLabel').style.color = '';
+  $('fbFileClear').style.display = 'none';
+}
+
+async function readFbFile() {
+  const input = $('fbFileInput');
+  if (!input.files || !input.files[0]) return null;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsText(input.files[0]);
+  });
+}
+
 async function submitFeedback() {
   const text = $('fbText').value.trim();
   if (!text) { $('fbText').focus(); return; }
@@ -1342,19 +1383,33 @@ async function submitFeedback() {
   fbSubmitBtn.disabled    = true;
   fbSubmitBtn.textContent = 'Submitting...';
 
-  const name   = $('fbName')?.value.trim() || 'Anonymous';
-  const label  = fbType === 'bug' ? 'bug' : 'enhancement';
-  const prefix = fbType === 'bug' ? '[Bug]' : fbType === 'feature' ? '[Feature]' : '[Improvement]';
-  const title  = prefix + ' ' + text.split('\n')[0].slice(0, 80);
-  const body   = [
+  const name      = $('fbName')?.value.trim() || 'Anonymous';
+  const label     = fbType === 'bug' ? 'bug' : 'enhancement';
+  const prefix    = fbType === 'bug' ? '[Bug]' : fbType === 'feature' ? '[Feature]' : '[Improvement]';
+  const title     = prefix + ' ' + text.split('\n')[0].slice(0, 80);
+  const fileInput = $('fbFileInput');
+  const fileName  = fileInput?.files?.[0]?.name || null;
+  let fileContent = null;
+  try { fileContent = fileName ? await readFbFile() : null; } catch(_) {}
+
+  const bodyParts = [
     '**Type:** ' + fbType,
     '**Submitted by:** ' + name,
     '**Steps loaded:** ' + (outputDataset ? outputDataset.rows.length : 'none'),
     '**Browser:** ' + navigator.userAgent.split(' ').slice(-2).join(' '),
     '',
     '**Description:**',
-    text
-  ].join('\n');
+    text,
+  ];
+  if (fileContent) {
+    bodyParts.push('', '**Attached log: ' + fileName + '**');
+    bodyParts.push('```');
+    /* Truncate to 60 000 chars — GitHub issue body limit is 65 536 */
+    bodyParts.push(fileContent.slice(0, 60000));
+    if (fileContent.length > 60000) bodyParts.push('... [truncated — full log is ' + fileContent.length + ' chars]');
+    bodyParts.push('```');
+  }
+  const body = bodyParts.join('\n');
 
   try {
     const res = await fetch(GH_FEEDBACK_ENDPOINT, {
@@ -1368,6 +1423,7 @@ async function submitFeedback() {
       fbSt('Submitted as Issue #' + data.number + '. Thank you!', 'green');
       $('fbText').value = '';
       $('fbName').value = '';
+      clearFbFile();
       setTimeout(() => { fbStatusEl.className = 'ts-status'; switchPane('analyser'); }, 2200);
     } else {
       const data = await res.json();
@@ -1694,11 +1750,33 @@ Schema: [{"stepId":"...","action":"...",${runFields},"suggestion":"...","expecte
 
   log('DEBUG', `callAISingle: engine=${engine}, steps=${payload.length}, first stepId=${payload[0]?.stepId}`);
 
+  /* Wrap fetch so CORS/network errors get a diagnosis instead of bare "Failed to fetch" */
+  async function safeFetch(url, opts) {
+    try {
+      return await fetch(url, opts);
+    } catch(err) {
+      const isCors = err.message === 'Failed to fetch' || err.message.includes('NetworkError');
+      if (isCors) {
+        const host = new URL(url).hostname;
+        throw new Error(
+          `Network/CORS block on ${host}. ` +
+          (host.includes('anthropic') ? 'Anthropic API requires the Cloudflare Worker proxy — check ts_worker.js is deployed.' :
+           host.includes('googleapis') ? 'Gemini API CORS error — check API key and network.' :
+           'Check network connectivity and API key.')
+        );
+      }
+      throw err;
+    }
+  }
+
   let res, data;
 
   if (engine === 'gemini') {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+    /* Route through Worker — Gemini blocks browser CORS from non-localhost origins */
+    const GEMINI_PROXY = 'https://ts-proxy.kankanala-sandeepsai.workers.dev/gemini';
+    res = await safeFetch(GEMINI_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Client-Key': key },
       body: JSON.stringify({
         contents: [{parts: [{text: `${sys}\n\n${user}`}]}],
         generationConfig: {
@@ -1710,15 +1788,14 @@ Schema: [{"stepId":"...","action":"...",${runFields},"suggestion":"...","expecte
     });
     if (!res.ok) {
       const t = await res.text();
-      log('ERROR', `Gemini HTTP ${res.status} full error: ${t.slice(0,500)}`);
-      /* Parse the retryAfter seconds Gemini embeds in the 429 message */
+      log('ERROR', `Gemini proxy HTTP ${res.status} full error: ${t.slice(0,500)}`);
       let retryAfterMs = 0;
       if (res.status === 429) {
         const secMatch = t.match(/retry in ([\d.]+)s/i);
         const msMatch  = t.match(/retry in ([\d.]+)ms/i);
         if (secMatch) retryAfterMs = Math.ceil(parseFloat(secMatch[1]) * 1000) + 1000;
         else if (msMatch) retryAfterMs = Math.ceil(parseFloat(msMatch[1])) + 1000;
-        else retryAfterMs = 20000; /* safe default */
+        else retryAfterMs = 20000;
       }
       const err = new Error(`Gemini HTTP ${res.status}: ${t.slice(0,200)}`);
       err.retryAfterMs = retryAfterMs;
@@ -1741,12 +1818,22 @@ Schema: [{"stepId":"...","action":"...",${runFields},"suggestion":"...","expecte
   }
 
   if (engine === 'claude') {
-    res = await fetch(`https://api.anthropic.com/v1/messages`, {
+    /* Route through Cloudflare Worker — api.anthropic.com blocks browser CORS */
+    const CLAUDE_PROXY = 'https://ts-proxy.kankanala-sandeepsai.workers.dev/claude';
+    res = await safeFetch(CLAUDE_PROXY, {
       method: 'POST',
-      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body: JSON.stringify({model:'claude-3-5-sonnet-20241022', max_tokens:32000, system:sys, messages:[{role:'user',content:user}]})
+      headers: {
+        'Content-Type':  'application/json',
+        'X-Client-Key':  key          /* Worker forwards this as x-api-key to Anthropic */
+      },
+      body: JSON.stringify({
+        model:      'claude-3-5-sonnet-20241022',
+        max_tokens: 32000,
+        system:     sys,
+        messages:   [{role:'user', content:user}]
+      })
     });
-    if (!res.ok) { const t = await res.text(); throw new Error(`Claude HTTP ${res.status}: ${t.slice(0,200)}`); }
+    if (!res.ok) { const t = await res.text(); throw new Error(`Claude proxy HTTP ${res.status}: ${t.slice(0,200)}`); }
     data = await res.json();
     const raw = data?.content?.[0]?.text || '';
     log('DEBUG', `Claude raw response length: ${raw.length} chars`);
@@ -1754,12 +1841,14 @@ Schema: [{"stepId":"...","action":"...",${runFields},"suggestion":"...","expecte
   }
 
   if (engine === 'copilot') {
-    res = await fetch(`https://api.openai.com/v1/chat/completions`, {
+    /* Route through Worker — api.openai.com blocks browser CORS */
+    const OPENAI_PROXY = 'https://ts-proxy.kankanala-sandeepsai.workers.dev/openai';
+    res = await safeFetch(OPENAI_PROXY, {
       method: 'POST',
-      headers: {'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+      headers: { 'Content-Type': 'application/json', 'X-Client-Key': key },
       body: JSON.stringify({model:'gpt-4o', max_tokens:32000, messages:[{role:'system',content:sys},{role:'user',content:user}]})
     });
-    if (!res.ok) { const t = await res.text(); throw new Error(`OpenAI HTTP ${res.status}: ${t.slice(0,200)}`); }
+    if (!res.ok) { const t = await res.text(); throw new Error(`OpenAI proxy HTTP ${res.status}: ${t.slice(0,200)}`); }
     data = await res.json();
     const raw = data?.choices?.[0]?.message?.content || '';
     log('DEBUG', `GPT-4o raw response length: ${raw.length} chars`);
