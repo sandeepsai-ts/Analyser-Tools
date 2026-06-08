@@ -312,7 +312,7 @@ tr.fallback-row td{background:#FFFBEB}
     <div class="topbar-right">
       <select id="aiEngine">
         <option value="gemini">Google Gemini 2.5 Flash</option>
-        <option value="claude">Anthropic Claude 3.5 Sonnet</option>
+        <option value="claude">Anthropic Claude Sonnet 4.6</option>
         <option value="copilot">GitHub Copilot / GPT-4o</option>
       </select>
       <input id="aiKey" type="password" placeholder="AI API key..."/>
@@ -2406,9 +2406,10 @@ Schema: [{"stepId":"...","action":"...",${runFields},"suggestion":"...","expecte
       headers: {
         'Content-Type':  'application/json',
         'X-Client-Key':  key          /* Worker forwards this as x-api-key to Anthropic */
+        /* No model string here — Worker injects CLAUDE_MODEL env var so
+           future Anthropic model updates only need a Cloudflare dashboard change */
       },
       body: JSON.stringify({
-        model:      'claude-3-5-sonnet-20241022',
         max_tokens: 32000,
         system:     sys,
         messages:   [{role:'user', content:user}]
