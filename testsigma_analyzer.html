@@ -1694,7 +1694,7 @@ const AGENT_SIGNATURES = [
     label: 'Port Already In Use',
     tier: 'config',
     badgeClass: 'config',
-    keywords: ['port already in use', '8080', '8383', 'java.net.bindexception', 'address already in use'],
+    keywords: ['port already in use', 'port 8080', 'port 8383', ':8080', ':8383', 'java.net.bindexception', 'address already in use', 'failed to bind'],
     summary: 'The Testsigma agent tried to start but another program is already using the same network port.',
     fix: '<strong>What to do:</strong> Close the program occupying the port, or tell the agent to use a different one. On a Mac or Linux machine, run <code>kill -9 &lt;PID&gt;</code> in Terminal. On Windows, run <code>taskkill /F /PID &lt;PID&gt;</code> in Command Prompt. Alternatively, open the <code>agent.properties</code> file in the agent folder and change the port number to something unused (e.g. 8090).',
     critical: false
@@ -1724,7 +1724,7 @@ const AGENT_SIGNATURES = [
     label: 'AI Analysis Limit Reached',
     tier: 'rate',
     badgeClass: 'rate',
-    keywords: ['429', 'quota exceeded', 'resource_exhausted', 'rate limit', 'too many requests', 'retry in'],
+    keywords: ['http 429', 'error 429', 'quota exceeded', 'resource_exhausted', 'rateLimitExceeded', 'too many requests', 'retry after', 'requests per minute exceeded', 'daily limit exceeded'],
     summary: 'The AI service used to generate test recommendations has hit its usage cap for this time period. Your tests ran fine — only the AI suggestion part is affected.',
     fix: '<strong>What to do:</strong> Wait until midnight UTC for the free usage limit to reset, or switch to a different AI engine using the dropdown in the top bar. If this happens frequently, consider upgrading the AI API subscription for higher limits.',
     critical: false
@@ -2048,6 +2048,8 @@ async function agentKBAutoLog(sig, matchedLine, sourceName, exceptionLines) {
     body:    JSON.stringify({ title, body, labels: ['known-issue', 'auto-logged', sig.tier] })
   });
   const data = await res.json();
+  if (!res.ok) throw new Error('Worker /log-report returned ' + res.status + ': ' + (data.error || JSON.stringify(data)));
+  if (!data.number) throw new Error('Worker returned no issue number — response: ' + JSON.stringify(data));
   return data.number;
 }
 
